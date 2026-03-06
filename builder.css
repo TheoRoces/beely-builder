@@ -957,6 +957,8 @@ body { margin: 0; overflow: hidden; height: 100vh; }
 .bld-configurator-embed .cfg-content {
   overflow-y: auto;
   height: 100%;
+  max-width: none;
+  padding: var(--space-6) var(--space-8);
 }
 
 .bld-editor__catalog {
