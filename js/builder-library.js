@@ -24,20 +24,26 @@
     return div.innerHTML;
   }
 
+  function copyFallback(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;left:-9999px;';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    BuilderApp.showToast('Copié !', 'success');
+  }
+
   function copyToClipboard(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(function () {
         BuilderApp.showToast('Copié !', 'success');
+      }).catch(function () {
+        copyFallback(text);
       });
     } else {
-      var ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.cssText = 'position:fixed;left:-9999px;';
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      BuilderApp.showToast('Copié !', 'success');
+      copyFallback(text);
     }
   }
 
@@ -512,9 +518,11 @@
     html += '</div></div>';
 
     // Delay slider
-    html += '<div class="bld-anim__group"><label class="bld-field__label">Délai : <span id="animDelayValue">' + (animState.delay * 100) + 'ms</span></label>';
+    html += '<div class="bld-anim__group"><label class="bld-field__label">Délai</label>';
+    html += '<div class="bld-anim__slider-wrap">';
     html += '<input type="range" class="bld-anim__slider" id="animDelaySlider" min="0" max="10" step="1" value="' + animState.delay + '">';
-    html += '</div>';
+    html += '<span class="bld-anim__slider-value" id="animDelayValue">' + (animState.delay * 100) + 'ms</span>';
+    html += '</div></div>';
 
     // Exit toggle
     html += '<div class="bld-anim__group">';
@@ -525,7 +533,9 @@
     html += '<div class="bld-anim__group"><label class="bld-field__label">Aperçu</label>';
     html += '<div class="bld-anim__preview-box">';
     html += '<div class="bld-anim__preview-item" id="animPreviewBox">Aperçu de l\'animation</div>';
-    html += '<button class="bld-btn bld-btn--sm" id="animReplayBtn">Rejouer</button>';
+    html += '<div class="bld-anim__preview-actions">';
+    html += '<button class="bld-btn bld-btn--sm" id="animReplayBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Rejouer</button>';
+    html += '</div>';
     html += '</div></div>';
 
     // Output
