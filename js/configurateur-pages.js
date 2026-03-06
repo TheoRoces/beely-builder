@@ -318,37 +318,118 @@
 
     // La page déplacée prend le même parent que la cible
     var targetParent = targetPage.parent || null;
-    reg.pages[draggedPath].parent = targetParent;
+    var currentParent = reg.pages[draggedPath].parent || null;
 
-    // Récupérer toutes les pages du même parent
-    var siblings = Object.keys(reg.pages).filter(function (p) {
-      return (reg.pages[p].parent || null) === targetParent;
-    }).map(function (p) {
-      return { path: p, order: reg.pages[p].order || 0 };
-    });
-    siblings.sort(function (a, b) { return a.order - b.order; });
+    function reorder(actualDraggedPath) {
+      // Récupérer toutes les pages du même parent
+      var siblings = Object.keys(reg.pages).filter(function (p) {
+        return (reg.pages[p].parent || null) === targetParent;
+      }).map(function (p) {
+        return { path: p, order: reg.pages[p].order || 0 };
+      });
+      siblings.sort(function (a, b) { return a.order - b.order; });
 
-    // Retirer la page dragged
-    var newOrder = siblings.filter(function (p) { return p.path !== draggedPath; });
+      // Retirer la page dragged
+      var newOrder = siblings.filter(function (p) { return p.path !== actualDraggedPath; });
 
-    // Trouver l'index de la cible
-    var targetIdx = newOrder.findIndex(function (p) { return p.path === targetPath; });
-    if (targetIdx === -1) return;
+      // Trouver l'index de la cible
+      var targetIdx = newOrder.findIndex(function (p) { return p.path === targetPath; });
+      if (targetIdx === -1) return;
 
-    // Insérer avant ou après la cible
-    var insertIdx = position === 'before' ? targetIdx : targetIdx + 1;
-    newOrder.splice(insertIdx, 0, { path: draggedPath });
+      // Insérer avant ou après la cible
+      var insertIdx = position === 'before' ? targetIdx : targetIdx + 1;
+      newOrder.splice(insertIdx, 0, { path: actualDraggedPath });
 
-    // Mettre à jour les ordres
-    newOrder.forEach(function (p, i) {
-      if (reg.pages[p.path]) reg.pages[p.path].order = i;
-    });
+      // Mettre à jour les ordres
+      newOrder.forEach(function (p, i) {
+        if (reg.pages[p.path]) reg.pages[p.path].order = i;
+      });
 
-    renderTree();
-    BuilderApp.saveRegistry();
+      renderTree();
+      BuilderApp.saveRegistry();
+    }
+
+    // Si le parent change, déplacer physiquement le fichier
+    if (currentParent !== targetParent) {
+      movePageToDisk(draggedPath, targetParent, reg).then(function () {
+        var newPath = computeNewPath(draggedPath, targetParent);
+        var actualPath = reg.pages[newPath] ? newPath : draggedPath;
+        reorder(actualPath);
+      }).catch(function (e) {
+        if (e.message !== 'exists') {
+          BuilderApp.showToast('Erreur : ' + e.message, 'error');
+        }
+      });
+    } else {
+      reorder(draggedPath);
+    }
   }
 
-  /** Imbrique une page comme enfant d'une autre */
+  /**
+   * Calcule le nouveau chemin physique d'une page en fonction de son parent.
+   * Parent "confidentialite.html" → dossier "confidentialite/"
+   * Parent null → racine
+   */
+  function computeNewPath(filename, newParentPath) {
+    // Extraire le nom de fichier seul (sans dossier)
+    var basename = filename.split('/').pop();
+    if (!newParentPath) {
+      return basename; // retour à la racine
+    }
+    // Le dossier du parent = slug du parent (sans .html)
+    var parentSlug = newParentPath.replace(/\.html$/, '').split('/').pop();
+    return parentSlug + '/' + basename;
+  }
+
+  /**
+   * Déplace physiquement une page (fichier sur disque + registry).
+   * Retourne une Promise.
+   */
+  function movePageToDisk(oldPath, newParentPath, reg) {
+    var newPath = computeNewPath(oldPath, newParentPath);
+
+    // Si le chemin ne change pas, juste mettre à jour le parent dans le registry
+    if (newPath === oldPath) {
+      reg.pages[oldPath].parent = newParentPath || null;
+      return Promise.resolve();
+    }
+
+    // Vérifier que la cible n'existe pas déjà
+    if (reg.pages[newPath]) {
+      BuilderApp.showToast('Un fichier existe déjà à ce chemin : ' + newPath, 'error');
+      return Promise.reject(new Error('exists'));
+    }
+
+    // Déplacer le fichier via l'API
+    return BuilderAPI.pageRename(oldPath, newPath).then(function () {
+      // Mettre à jour la clé dans le registry
+      var pageData = reg.pages[oldPath];
+      delete reg.pages[oldPath];
+      pageData.parent = newParentPath || null;
+      pageData.slug = newPath.replace(/\.html$/, '');
+      pageData.updatedAt = new Date().toISOString();
+      reg.pages[newPath] = pageData;
+
+      // Mettre à jour les enfants qui référencent l'ancien chemin comme parent
+      Object.keys(reg.pages).forEach(function (p) {
+        if (reg.pages[p].parent === oldPath) {
+          reg.pages[p].parent = newPath;
+        }
+      });
+
+      // Mettre à jour selectedPage si c'était cette page
+      if (selectedPage === oldPath) {
+        selectedPage = newPath;
+      }
+
+      // Mettre à jour homepage si c'était cette page
+      if (reg.homepage === oldPath) {
+        reg.homepage = newPath;
+      }
+    });
+  }
+
+  /** Imbrique une page comme enfant d'une autre (avec déplacement physique) */
   function nestPage(childPath, parentPath) {
     var reg = BuilderApp.state.registry;
     if (!reg || !reg.pages) return;
@@ -368,19 +449,28 @@
       return;
     }
 
-    reg.pages[childPath].parent = parentPath;
+    movePageToDisk(childPath, parentPath, reg).then(function () {
+      // Trouver le nouveau chemin (peut avoir changé)
+      var newPath = computeNewPath(childPath, parentPath);
+      var actualPath = reg.pages[newPath] ? newPath : childPath;
 
-    // Mettre l'enfant à la fin des enfants existants du parent
-    var existingChildren = Object.keys(reg.pages).filter(function (p) {
-      return reg.pages[p].parent === parentPath && p !== childPath;
+      // Mettre l'enfant à la fin des enfants existants du parent
+      var existingChildren = Object.keys(reg.pages).filter(function (p) {
+        return reg.pages[p].parent === parentPath && p !== actualPath;
+      });
+      reg.pages[actualPath].order = existingChildren.length;
+
+      // Déplier le parent pour montrer le nouvel enfant
+      if (reg.pages[parentPath]) reg.pages[parentPath].collapsed = false;
+
+      renderTree();
+      BuilderApp.saveRegistry();
+      BuilderApp.showToast('Page déplacée', 'success');
+    }).catch(function (e) {
+      if (e.message !== 'exists') {
+        BuilderApp.showToast('Erreur lors du déplacement : ' + e.message, 'error');
+      }
     });
-    reg.pages[childPath].order = existingChildren.length;
-
-    // Déplier le parent pour montrer le nouvel enfant
-    reg.pages[parentPath].collapsed = false;
-
-    renderTree();
-    BuilderApp.saveRegistry();
   }
 
   /* ══════════════════════════════════════
@@ -596,9 +686,23 @@
           return;
         }
 
-        page.parent = newParent;
-        page.updatedAt = new Date().toISOString();
-        saveAndRefresh();
+        // Déplacer physiquement le fichier
+        movePageToDisk(path, newParent, reg).then(function () {
+          var newPath = computeNewPath(path, newParent);
+          var actualPath = reg.pages[newPath] ? newPath : path;
+          saveAndRefresh();
+          // Re-sélectionner la page (le path a pu changer)
+          if (actualPath !== path) {
+            selectPage(actualPath);
+          }
+          BuilderApp.showToast('Page déplacée', 'success');
+        }).catch(function (e) {
+          // Remettre l'ancienne valeur du select
+          parentSelect.value = page.parent || '';
+          if (e.message !== 'exists') {
+            BuilderApp.showToast('Erreur : ' + e.message, 'error');
+          }
+        });
       });
     }
 

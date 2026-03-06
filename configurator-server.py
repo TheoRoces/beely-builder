@@ -411,6 +411,16 @@ class BuilderHandler(SimpleHTTPRequestHandler):
             os.makedirs(parent_dir, exist_ok=True)
 
         shutil.move(old_filepath, new_filepath)
+
+        # Nettoyer le dossier source s'il est vide
+        old_parent_dir = os.path.dirname(old_filepath)
+        if old_parent_dir != os.path.realpath(ROOT):
+            try:
+                if os.path.isdir(old_parent_dir) and not os.listdir(old_parent_dir):
+                    os.rmdir(old_parent_dir)
+            except OSError:
+                pass
+
         self._json(200, {'ok': True, 'oldPath': old_path, 'newPath': new_path})
 
     def _handle_page_duplicate(self, body):
