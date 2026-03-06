@@ -915,9 +915,8 @@
             updatedAt: now
           };
         } else {
-          // Mettre à jour les flags serveur sur les pages existantes
+          // Mettre à jour readOnly depuis le serveur (les pages existantes gardent leur isTemplate du registre)
           reg.pages[page.path].readOnly = page.readOnly || false;
-          reg.pages[page.path].isTemplate = page.isTemplate || false;
         }
       });
 

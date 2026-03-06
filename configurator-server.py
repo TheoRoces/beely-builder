@@ -118,13 +118,9 @@ def scan_html_pages():
                 'isTemplate': False
             })
 
-    # Détecter les templates : pages dans un sous-dossier dont le dossier
-    # correspond à un fichier .html existant (ex: blog/article.html → blog.html)
-    root_pages = {p['filename'] for p in pages if '/' not in p['path']}
-    for page in pages:
-        if '/' in page['path']:
-            folder = page['path'].split('/')[0]
-            page['isTemplate'] = (folder + '.html') in root_pages
+    # isTemplate n'est pas auto-détecté par le scan.
+    # C'est le registre (pages.json) qui fait foi.
+    # Le scan retourne isTemplate: False par défaut.
 
     return pages
 
