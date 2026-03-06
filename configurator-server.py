@@ -50,6 +50,8 @@ PROTECTED_FILES = {'index.html', '404.html', 'configurator.html', 'config-site.j
 IGNORED_HTML = {'404.html', 'configurator.html', 'base-index.html'}
 
 
+PAGES_DIR = 'pages'
+
 def safe_path(path_str):
     """Résout un chemin et vérifie qu'il est dans ROOT. Retourne None si invalide."""
     if not path_str or '..' in path_str:
@@ -58,6 +60,12 @@ def safe_path(path_str):
     if not resolved.startswith(os.path.realpath(ROOT)):
         return None
     return resolved
+
+def page_safe_path(path_str):
+    """Résout un chemin de page relatif au dossier pages/."""
+    if not path_str:
+        return None
+    return safe_path(os.path.join(PAGES_DIR, path_str))
 
 
 def is_protected_path(path_str):
@@ -73,21 +81,21 @@ def extract_title(html_content):
 
 
 def scan_html_pages():
-    """Scanne les fichiers .html à la racine et sous-dossiers (hors protégés)."""
+    """Scanne les fichiers .html dans le dossier pages/."""
     pages = []
-    for dirpath, dirnames, filenames in os.walk(ROOT):
-        # Filtrer les dossiers protégés
-        rel_dir = os.path.relpath(dirpath, ROOT)
-        if rel_dir != '.':
-            top = rel_dir.replace('\\', '/').split('/')[0]
-            if top in PROTECTED_DIRS or top.startswith('.'):
-                dirnames.clear()
-                continue
+    pages_root = os.path.join(ROOT, PAGES_DIR)
+    if not os.path.isdir(pages_root):
+        return pages
+
+    for dirpath, dirnames, filenames in os.walk(pages_root):
+        # Ignorer les dossiers css/ et js/ (assets custom, pas des pages)
+        dirnames[:] = [d for d in dirnames if d not in ('css', 'js')]
 
         for fname in sorted(filenames):
             if not fname.endswith('.html'):
                 continue
-            rel_path = os.path.relpath(os.path.join(dirpath, fname), ROOT)
+            # Chemin relatif au dossier pages/ (pas à ROOT)
+            rel_path = os.path.relpath(os.path.join(dirpath, fname), pages_root)
             rel_path = rel_path.replace('\\', '/')
 
             if rel_path in IGNORED_HTML:
@@ -111,7 +119,7 @@ def scan_html_pages():
             })
 
     # Détecter les templates : pages dans un sous-dossier dont le dossier
-    # correspond à un fichier .html existant à la racine (ex: blog/article.html → blog.html)
+    # correspond à un fichier .html existant (ex: blog/article.html → blog.html)
     root_pages = {p['filename'] for p in pages if '/' not in p['path']}
     for page in pages:
         if '/' in page['path']:
@@ -351,7 +359,7 @@ class BuilderHandler(SimpleHTTPRequestHandler):
             return self._json(400, {'error': 'Nom de fichier invalide (doit finir par .html)'})
         if is_protected_path(filename):
             return self._json(403, {'error': 'Dossier protégé'})
-        filepath = safe_path(filename)
+        filepath = page_safe_path(filename)
         if not filepath:
             return self._json(400, {'error': 'Chemin invalide'})
         if os.path.exists(filepath):
@@ -364,6 +372,15 @@ class BuilderHandler(SimpleHTTPRequestHandler):
                 content = f.read()
         else:
             content = '<!DOCTYPE html>\n<html lang="fr">\n<head>\n  <meta charset="UTF-8">\n  <title>Nouvelle page</title>\n</head>\n<body>\n\n</body>\n</html>'
+
+        # Ajuster les chemins relatifs du template selon la profondeur
+        # pages/ = +1 niveau, sous-dossiers = +N niveaux
+        depth = filename.count('/')
+        prefix = '../' * (depth + 1)
+        content = content.replace('src="core/', 'src="' + prefix + 'core/')
+        content = content.replace('href="core/', 'href="' + prefix + 'core/')
+        content = content.replace('src="config-site.js"', 'src="' + prefix + 'config-site.js"')
+        content = content.replace('src="components/', 'src="' + prefix + 'components/')
 
         # Créer le dossier parent si nécessaire
         parent_dir = os.path.dirname(filepath)
@@ -381,12 +398,23 @@ class BuilderHandler(SimpleHTTPRequestHandler):
             return self._json(403, {'error': 'Fichier protégé: ' + path_str})
         if is_protected_path(path_str):
             return self._json(403, {'error': 'Dossier protégé'})
-        filepath = safe_path(path_str)
+        filepath = page_safe_path(path_str)
         if not filepath:
             return self._json(400, {'error': 'Chemin invalide'})
         if not os.path.exists(filepath):
             return self._json(404, {'error': 'Fichier introuvable'})
         os.remove(filepath)
+
+        # Nettoyer le dossier parent s'il est vide
+        parent_dir = os.path.dirname(filepath)
+        pages_root = os.path.realpath(os.path.join(ROOT, PAGES_DIR))
+        if parent_dir != pages_root:
+            try:
+                if os.path.isdir(parent_dir) and not os.listdir(parent_dir):
+                    os.rmdir(parent_dir)
+            except OSError:
+                pass
+
         self._json(200, {'ok': True})
 
     def _handle_page_rename(self, body):
@@ -394,8 +422,8 @@ class BuilderHandler(SimpleHTTPRequestHandler):
         new_path = body.get('newPath', '')
         if is_protected_path(old_path) or is_protected_path(new_path):
             return self._json(403, {'error': 'Dossier protégé'})
-        old_filepath = safe_path(old_path)
-        new_filepath = safe_path(new_path)
+        old_filepath = page_safe_path(old_path)
+        new_filepath = page_safe_path(new_path)
         if not old_filepath or not new_filepath:
             return self._json(400, {'error': 'Chemin invalide'})
         if not old_filepath.endswith('.html') or not new_filepath.endswith('.html'):
@@ -414,7 +442,8 @@ class BuilderHandler(SimpleHTTPRequestHandler):
 
         # Nettoyer le dossier source s'il est vide
         old_parent_dir = os.path.dirname(old_filepath)
-        if old_parent_dir != os.path.realpath(ROOT):
+        pages_root = os.path.realpath(os.path.join(ROOT, PAGES_DIR))
+        if old_parent_dir != pages_root:
             try:
                 if os.path.isdir(old_parent_dir) and not os.listdir(old_parent_dir):
                     os.rmdir(old_parent_dir)
@@ -432,8 +461,8 @@ class BuilderHandler(SimpleHTTPRequestHandler):
             return self._json(400, {'error': 'Le nom doit finir par .html'})
         if is_protected_path(new_filename):
             return self._json(403, {'error': 'Dossier protégé'})
-        source_filepath = safe_path(source_path)
-        new_filepath = safe_path(new_filename)
+        source_filepath = page_safe_path(source_path)
+        new_filepath = page_safe_path(new_filename)
         if not source_filepath or not new_filepath:
             return self._json(400, {'error': 'Chemin invalide'})
         if not os.path.exists(source_filepath):
