@@ -1062,12 +1062,16 @@ html { scroll-padding-top: 5rem; }
       var pre = btn.parentElement;
       var text = pre.textContent.replace('Copier', '').replace('Copi\u00e9 !', '').trim();
       navigator.clipboard.writeText(text).then(function () {
-        btn.textContent = 'Copi\u00e9 !';
+        btn.textContent = 'Copié !';
         btn.classList.add('cfg-copy-btn--success');
         setTimeout(function () {
           btn.textContent = 'Copier';
           btn.classList.remove('cfg-copy-btn--success');
         }, 2000);
+        // Toast dans le builder (mode embed)
+        if (window.BuilderApp && window.BuilderApp.showToast) {
+          window.BuilderApp.showToast('Copié !', 'success');
+        }
       }).catch(function () { btn.textContent = 'Erreur'; });
     });
   });

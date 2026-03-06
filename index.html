@@ -375,6 +375,10 @@
         </div>
         <div class="bld-lib__toolbar">
           <input type="text" class="bld-field__input" id="libMediaSearch" placeholder="Rechercher..." style="flex: 1;">
+          <button class="bld-btn bld-btn--sm" id="btnMediaMkdir" title="Nouveau dossier">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14"><path d="M12 10.5v6m3-3H9m4.06-7.19l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z"/></svg>
+            Dossier
+          </button>
           <button class="bld-btn bld-btn--primary bld-btn--sm" id="btnMediaUpload">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Uploader
@@ -393,7 +397,7 @@
 </div>
 
 <!-- Toast -->
-<div class="bld-toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+<div class="bld-toast" id="bldToast" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <!-- Modal nouvelle page -->
 <div class="bld-modal-overlay" id="modalNewPage" role="dialog" aria-modal="true" aria-labelledby="modalNewPageTitle">
@@ -420,6 +424,37 @@
       <input class="bld-field__input" type="text" id="bldModalFieldInput">
     </div>
     <div class="bld-modal__actions" id="bldModalActions"></div>
+  </div>
+</div>
+
+<!-- Modal édition média -->
+<div class="bld-modal-overlay" id="bldMediaEditOverlay" role="dialog" aria-modal="true" aria-labelledby="mediaEditTitle">
+  <div class="bld-modal bld-modal--media-edit">
+    <div class="bld-media-edit">
+      <div class="bld-media-edit__preview">
+        <img id="mediaEditPreview" src="" alt="">
+      </div>
+      <div class="bld-media-edit__form">
+        <h3 class="bld-modal__title" id="mediaEditTitle">Détails du fichier</h3>
+        <div class="bld-media-edit__info" id="mediaEditInfo"></div>
+        <div class="bld-field">
+          <label class="bld-field__label">Nom du fichier</label>
+          <input class="bld-field__input" type="text" id="mediaEditName">
+        </div>
+        <div class="bld-field">
+          <label class="bld-field__label">Texte alternatif (alt)</label>
+          <input class="bld-field__input" type="text" id="mediaEditAlt" placeholder="Description de l'image pour l'accessibilité">
+        </div>
+        <div class="bld-field">
+          <label class="bld-field__label">Dossier</label>
+          <select class="bld-field__input" id="mediaEditFolder"></select>
+        </div>
+        <div class="bld-modal__actions">
+          <button class="bld-btn bld-btn--ghost" id="mediaEditCancel">Annuler</button>
+          <button class="bld-btn bld-btn--primary" id="mediaEditSave">Enregistrer</button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 

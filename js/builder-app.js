@@ -125,7 +125,7 @@
   /* ---------- Toast ---------- */
   var toastTimer;
   function showToast(msg, type) {
-    var t = document.getElementById('toast');
+    var t = document.getElementById('bldToast');
     t.textContent = msg;
     t.className = 'bld-toast bld-toast--visible';
     if (type === 'error') t.classList.add('bld-toast--error');

@@ -172,6 +172,12 @@ class BuilderHandler(SimpleHTTPRequestHandler):
             self._handle_media_upload(body)
         elif path == '/api/media-delete':
             self._handle_media_delete(body)
+        elif path == '/api/media-rename':
+            self._handle_media_rename(body)
+        elif path == '/api/media-mkdir':
+            self._handle_media_mkdir(body)
+        elif path == '/api/media-move':
+            self._handle_media_move(body)
 
         # ── Registre pages.json ──
         elif path == '/api/registry-read':
@@ -407,9 +413,19 @@ class BuilderHandler(SimpleHTTPRequestHandler):
     def _handle_media_list(self):
         media_dir = os.path.join(ROOT, 'assets', 'images')
         if not os.path.exists(media_dir):
-            return self._json(200, {'ok': True, 'files': []})
+            return self._json(200, {'ok': True, 'files': [], 'folders': []})
         files = []
+        folders = []
         for dirpath, dirnames, filenames in os.walk(media_dir):
+            # Collecter les sous-dossiers (relatifs à assets/images/)
+            rel_dir = os.path.relpath(dirpath, media_dir).replace('\\', '/')
+            if rel_dir == '.':
+                rel_dir = ''
+            for dname in sorted(dirnames):
+                if dname.startswith('.'):
+                    continue
+                folder_rel = (rel_dir + '/' + dname) if rel_dir else dname
+                folders.append(folder_rel)
             for fname in sorted(filenames):
                 if fname.startswith('.'):
                     continue
@@ -418,20 +434,25 @@ class BuilderHandler(SimpleHTTPRequestHandler):
                     continue
                 full_path = os.path.join(dirpath, fname)
                 rel_path = os.path.relpath(full_path, ROOT).replace('\\', '/')
+                folder = os.path.relpath(dirpath, media_dir).replace('\\', '/')
+                if folder == '.':
+                    folder = ''
                 stat = os.stat(full_path)
                 files.append({
                     'name': fname,
                     'path': rel_path,
+                    'folder': folder,
                     'size': stat.st_size,
                     'modified': stat.st_mtime
                 })
         # Trier par date de modification décroissante
         files.sort(key=lambda f: f['modified'], reverse=True)
-        self._json(200, {'ok': True, 'files': files})
+        self._json(200, {'ok': True, 'files': files, 'folders': sorted(set(folders))})
 
     def _handle_media_upload(self, body):
         filename = body.get('filename', '')
         data_b64 = body.get('data', '')
+        folder = body.get('folder', '')
         if not filename or not data_b64:
             return self._json(400, {'error': 'Paramètres manquants (filename, data)'})
         # Valider l'extension
@@ -441,6 +462,8 @@ class BuilderHandler(SimpleHTTPRequestHandler):
         # Sécurité : pas de traversal
         if '/' in filename or '\\' in filename or '..' in filename:
             return self._json(400, {'error': 'Nom de fichier invalide'})
+        if '..' in folder:
+            return self._json(400, {'error': 'Dossier invalide'})
         # Décoder le base64
         try:
             file_data = base64.b64decode(data_b64)
@@ -450,6 +473,8 @@ class BuilderHandler(SimpleHTTPRequestHandler):
             return self._json(400, {'error': 'Fichier trop volumineux (max 5 Mo)'})
         # Écrire le fichier
         media_dir = os.path.join(ROOT, 'assets', 'images')
+        if folder:
+            media_dir = os.path.join(media_dir, folder)
         os.makedirs(media_dir, exist_ok=True)
         filepath = os.path.join(media_dir, filename)
         # Éviter l'écrasement : ajouter un suffixe si le fichier existe
@@ -476,6 +501,77 @@ class BuilderHandler(SimpleHTTPRequestHandler):
             return self._json(404, {'error': 'Fichier introuvable'})
         os.remove(filepath)
         self._json(200, {'ok': True})
+
+    def _handle_media_rename(self, body):
+        """Renommer un fichier média."""
+        old_path = body.get('path', '')
+        new_name = body.get('newName', '')
+        if not old_path or not old_path.startswith('assets/images/') or not new_name:
+            return self._json(400, {'error': 'Paramètres invalides'})
+        if '/' in new_name or '\\' in new_name or '..' in new_name:
+            return self._json(400, {'error': 'Nom de fichier invalide'})
+        # Vérifier l'extension
+        ext = os.path.splitext(new_name)[1].lower()
+        if ext not in self.ALLOWED_MEDIA_EXT:
+            return self._json(400, {'error': 'Extension non autorisée: ' + ext})
+        old_filepath = safe_path(old_path)
+        if not old_filepath or not os.path.exists(old_filepath):
+            return self._json(404, {'error': 'Fichier introuvable'})
+        new_filepath = os.path.join(os.path.dirname(old_filepath), new_name)
+        if os.path.exists(new_filepath):
+            return self._json(400, {'error': 'Un fichier avec ce nom existe déjà'})
+        os.rename(old_filepath, new_filepath)
+        new_rel = os.path.relpath(new_filepath, ROOT).replace('\\', '/')
+        self._json(200, {'ok': True, 'path': new_rel, 'name': new_name})
+
+    def _handle_media_mkdir(self, body):
+        """Créer un dossier dans assets/images/."""
+        folder_name = body.get('name', '')
+        parent = body.get('parent', '')
+        if not folder_name:
+            return self._json(400, {'error': 'Nom de dossier requis'})
+        if '/' in folder_name or '\\' in folder_name or '..' in folder_name:
+            return self._json(400, {'error': 'Nom de dossier invalide'})
+        if '..' in parent:
+            return self._json(400, {'error': 'Chemin parent invalide'})
+        media_dir = os.path.join(ROOT, 'assets', 'images')
+        if parent:
+            media_dir = os.path.join(media_dir, parent)
+        target = os.path.join(media_dir, folder_name)
+        # Vérifier que le chemin reste dans ROOT
+        resolved = os.path.realpath(target)
+        if not resolved.startswith(os.path.realpath(ROOT)):
+            return self._json(400, {'error': 'Chemin invalide'})
+        if os.path.exists(target):
+            return self._json(400, {'error': 'Ce dossier existe déjà'})
+        os.makedirs(target, exist_ok=True)
+        self._json(200, {'ok': True, 'folder': folder_name})
+
+    def _handle_media_move(self, body):
+        """Déplacer un fichier vers un autre dossier."""
+        file_path = body.get('path', '')
+        target_folder = body.get('folder', '')
+        if not file_path or not file_path.startswith('assets/images/'):
+            return self._json(400, {'error': 'Chemin invalide'})
+        if '..' in target_folder:
+            return self._json(400, {'error': 'Dossier cible invalide'})
+        old_filepath = safe_path(file_path)
+        if not old_filepath or not os.path.exists(old_filepath):
+            return self._json(404, {'error': 'Fichier introuvable'})
+        filename = os.path.basename(old_filepath)
+        media_dir = os.path.join(ROOT, 'assets', 'images')
+        if target_folder:
+            dest_dir = os.path.join(media_dir, target_folder)
+        else:
+            dest_dir = media_dir
+        if not os.path.exists(dest_dir):
+            return self._json(400, {'error': 'Dossier cible introuvable'})
+        new_filepath = os.path.join(dest_dir, filename)
+        if os.path.exists(new_filepath):
+            return self._json(400, {'error': 'Un fichier avec ce nom existe déjà dans ce dossier'})
+        shutil.move(old_filepath, new_filepath)
+        new_rel = os.path.relpath(new_filepath, ROOT).replace('\\', '/')
+        self._json(200, {'ok': True, 'path': new_rel})
 
     # ═══════════════════════════════════════════════════════
     #  REGISTRE (data/pages.json)

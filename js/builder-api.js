@@ -42,8 +42,11 @@
 
     // ── Médiathèque ──
     mediaList: function () { return post('/api/media-list'); },
-    mediaUpload: function (filename, base64data) { return post('/api/media-upload', { filename: filename, data: base64data }); },
+    mediaUpload: function (filename, base64data, folder) { return post('/api/media-upload', { filename: filename, data: base64data, folder: folder || '' }); },
     mediaDelete: function (path) { return post('/api/media-delete', { path: path }); },
+    mediaRename: function (path, newName) { return post('/api/media-rename', { path: path, newName: newName }); },
+    mediaMkdir: function (name, parent) { return post('/api/media-mkdir', { name: name, parent: parent || '' }); },
+    mediaMove: function (path, folder) { return post('/api/media-move', { path: path, folder: folder || '' }); },
 
     // ── Registre ──
     registryRead: function () { return post('/api/registry-read'); },
