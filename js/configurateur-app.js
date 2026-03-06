@@ -90,6 +90,30 @@
     toastTimer = setTimeout(function () { t.classList.remove('bld-toast--visible'); }, 3000);
   }
 
+  /* ---------- Migration V1 → V2 (dossiers indépendants) ---------- */
+  function migrateV1toV2(reg) {
+    if (reg.version >= 2) return reg;
+    var folders = {};
+    Object.keys(reg.pages).forEach(function (path) {
+      var slash = path.lastIndexOf('/');
+      if (slash !== -1) {
+        var folder = path.substring(0, slash);
+        if (!folders[folder]) folders[folder] = { order: Object.keys(folders).length, collapsed: false };
+      }
+      // Reporter collapsed de la page-parent vers le dossier
+      var page = reg.pages[path];
+      if (page.collapsed !== undefined) {
+        var folderName = path.replace(/\.html$/, '');
+        if (folders[folderName]) folders[folderName].collapsed = page.collapsed;
+        delete page.collapsed;
+      }
+      delete page.parent;
+    });
+    reg.version = 2;
+    reg.folders = folders;
+    return reg;
+  }
+
   /* ---------- Init ---------- */
   async function init() {
     // Charger le nom du site
@@ -108,8 +132,8 @@
     try {
       var regResp = await BuilderAPI.registryRead();
       if (regResp.ok && regResp.registry) {
-        state.registry = regResp.registry;
-        // Toujours synchroniser les flags serveur (readOnly, isTemplate, parent)
+        state.registry = migrateV1toV2(regResp.registry);
+        // Toujours synchroniser les flags serveur (readOnly, isTemplate)
         await syncRegistryFlags();
       } else {
         // Première ouverture : créer le registre depuis le filesystem
@@ -119,12 +143,11 @@
       console.error('Erreur chargement registre:', e);
     }
 
-    // Garde-fou : la homepage doit toujours être à la racine
+    // Garde-fou : la homepage doit toujours être à la racine et en première position
     var homepage = state.registry && state.registry.homepage || 'index.html';
     if (state.registry && state.registry.pages && state.registry.pages[homepage]) {
       var homePage = state.registry.pages[homepage];
-      if (homePage.parent !== null || (homePage.order !== undefined && homePage.order > 0)) {
-        homePage.parent = null;
+      if (homePage.order !== undefined && homePage.order > 0) {
         homePage.order = -1;
         await BuilderAPI.registryWrite(state.registry);
       }
@@ -139,9 +162,17 @@
     if (!resp.ok) return;
 
     var now = new Date().toISOString();
+    var folders = {};
+
+    // Détecter les dossiers depuis les chemins des pages + dossiers du serveur
+    (resp.folders || []).forEach(function (f) {
+      folders[f] = { order: Object.keys(folders).length, collapsed: false };
+    });
+
     var registry = {
-      version: 1,
+      version: 2,
       homepage: 'index.html',
+      folders: folders,
       deploys: {
         prod: { lastDeploy: null, status: null },
         preprod: { lastDeploy: null, status: null },
@@ -163,27 +194,18 @@
         customHead: '',
         customBody: '',
         order: i,
-        parent: null,
         readOnly: page.readOnly || false,
         isTemplate: page.isTemplate || false,
         createdAt: now,
         updatedAt: now
       };
-    });
 
-    // Auto-détection parent depuis la structure de dossiers
-    Object.keys(registry.pages).forEach(function (pagePath) {
-      if (pagePath.indexOf('/') !== -1) {
-        var parts = pagePath.split('/');
-        var folder = parts[0];
-        var filename = parts[parts.length - 1];
-        if (filename === 'index.html' && parts.length === 2) return;
-        var rootParent = folder + '.html';
-        var indexParent = folder + '/index.html';
-        if (registry.pages[rootParent]) {
-          registry.pages[pagePath].parent = rootParent;
-        } else if (registry.pages[indexParent]) {
-          registry.pages[pagePath].parent = indexParent;
+      // S'assurer que le dossier parent est enregistré
+      var slash = page.path.lastIndexOf('/');
+      if (slash !== -1) {
+        var folder = page.path.substring(0, slash);
+        if (!registry.folders[folder]) {
+          registry.folders[folder] = { order: Object.keys(registry.folders).length, collapsed: false };
         }
       }
     });
@@ -192,7 +214,7 @@
     await BuilderAPI.registryWrite(registry);
   }
 
-  /** Synchronise readOnly/isTemplate/parent depuis le serveur sur un registre existant */
+  /** Synchronise readOnly/isTemplate depuis le serveur sur un registre existant */
   async function syncRegistryFlags() {
     try {
       var resp = await BuilderAPI.pagesList();
@@ -200,6 +222,16 @@
       var reg = state.registry;
       var now = new Date().toISOString();
       var diskPaths = resp.pages.map(function (p) { return p.path; });
+
+      // S'assurer que folders existe
+      if (!reg.folders) reg.folders = {};
+
+      // Synchroniser les dossiers depuis le serveur
+      (resp.folders || []).forEach(function (f) {
+        if (!reg.folders[f]) {
+          reg.folders[f] = { order: Object.keys(reg.folders).length, collapsed: false };
+        }
+      });
 
       // Ajouter les nouvelles pages + mettre à jour les flags
       resp.pages.forEach(function (page) {
@@ -211,30 +243,21 @@
             metaTitle: '', metaDescription: '', featuredImage: '',
             status: 'published', noindex: false,
             customHead: '', customBody: '',
-            order: pageCount, parent: null,
+            order: pageCount,
             readOnly: page.readOnly || false,
             isTemplate: page.isTemplate || false,
             createdAt: now, updatedAt: now
           };
         } else {
           reg.pages[page.path].readOnly = page.readOnly || false;
-          reg.pages[page.path].isTemplate = page.isTemplate || false;
         }
-      });
 
-      // Auto-détection parent depuis la structure de dossiers
-      Object.keys(reg.pages).forEach(function (pagePath) {
-        if (pagePath.indexOf('/') !== -1 && !reg.pages[pagePath].parent) {
-          var parts = pagePath.split('/');
-          var folder = parts[0];
-          var filename = parts[parts.length - 1];
-          if (filename === 'index.html' && parts.length === 2) return;
-          var rootParent = folder + '.html';
-          var indexParent = folder + '/index.html';
-          if (reg.pages[rootParent]) {
-            reg.pages[pagePath].parent = rootParent;
-          } else if (reg.pages[indexParent]) {
-            reg.pages[pagePath].parent = indexParent;
+        // S'assurer que le dossier parent est enregistré
+        var slash = page.path.lastIndexOf('/');
+        if (slash !== -1) {
+          var folder = page.path.substring(0, slash);
+          if (!reg.folders[folder]) {
+            reg.folders[folder] = { order: Object.keys(reg.folders).length, collapsed: false };
           }
         }
       });
@@ -243,6 +266,18 @@
       Object.keys(reg.pages).forEach(function (path) {
         if (diskPaths.indexOf(path) === -1) {
           delete reg.pages[path];
+        }
+      });
+
+      // Supprimer les dossiers qui n'existent plus sur le serveur
+      var serverFolders = resp.folders || [];
+      Object.keys(reg.folders).forEach(function (f) {
+        if (serverFolders.indexOf(f) === -1) {
+          // Vérifier aussi si des pages sont dans ce dossier
+          var hasPages = Object.keys(reg.pages).some(function (p) {
+            return p.indexOf(f + '/') === 0;
+          });
+          if (!hasPages) delete reg.folders[f];
         }
       });
 

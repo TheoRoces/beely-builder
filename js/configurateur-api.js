@@ -30,6 +30,8 @@
     pageDelete: function (path) { return post('/api/page-delete', { path: path }); },
     pageRename: function (oldPath, newPath) { return post('/api/page-rename', { oldPath: oldPath, newPath: newPath }); },
     pageDuplicate: function (sourcePath, newFilename) { return post('/api/page-duplicate', { sourcePath: sourcePath, newFilename: newFilename }); },
+    pageMkdir: function (name) { return post('/api/page-mkdir', { name: name }); },
+    pageRmdir: function (path) { return post('/api/page-rmdir', { path: path }); },
 
     // ── Icônes ──
     iconsList: function () { return post('/api/icons-list'); },

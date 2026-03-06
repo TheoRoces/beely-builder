@@ -1,5 +1,5 @@
 /* ==========================================================================
-   BUILDER PAGES — Tree view hiérarchique, CRUD, drag & drop, métadonnées
+   BUILDER PAGES — Tree view par dossiers (V2), CRUD, drag & drop, métadonnées
    ========================================================================== */
 (function () {
   'use strict';
@@ -22,82 +22,41 @@
     return (str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  /** Vérifie si `path` est un descendant de `ancestorPath` dans le registre */
-  function isDescendant(path, ancestorPath, reg) {
-    var current = path;
-    var visited = {};
-    while (current) {
-      if (visited[current]) return false; // protection boucle
-      visited[current] = true;
-      var pageData = reg.pages[current];
-      if (!pageData || !pageData.parent) return false;
-      if (pageData.parent === ancestorPath) return true;
-      current = pageData.parent;
-    }
-    return false;
+  /** Extrait le dossier d'un chemin de page. Ex: 'blog/article.html' → 'blog', 'index.html' → '' */
+  function getFolderFromPath(pagePath) {
+    var slash = pagePath.lastIndexOf('/');
+    return slash === -1 ? '' : pagePath.substring(0, slash);
   }
 
-  /** Construit la structure arborescente : { roots: [...], children: { parentPath: [...] } } */
-  function buildTreeStructure(pages, reg) {
-    var children = {};
-    var roots = [];
-
-    pages.forEach(function (page) {
-      var parentPath = page.parent || null;
-      if (parentPath && reg.pages[parentPath]) {
-        if (!children[parentPath]) children[parentPath] = [];
-        children[parentPath].push(page);
-      } else {
-        roots.push(page);
-      }
+  /** Groupe les pages par dossier et collecte tous les dossiers */
+  function buildFolderTree(reg) {
+    var groups = {}; // { '': [pages racine], 'blog': [pages blog/], ... }
+    var allPages = Object.keys(reg.pages).map(function (path) {
+      return Object.assign({ path: path }, reg.pages[path]);
     });
 
-    // Trier les enfants par order
-    Object.keys(children).forEach(function (key) {
-      children[key].sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
+    allPages.forEach(function (p) {
+      var folder = getFolderFromPath(p.path);
+      if (!groups[folder]) groups[folder] = [];
+      groups[folder].push(p);
     });
 
-    return { roots: roots, children: children };
+    // Trier chaque groupe par order
+    Object.keys(groups).forEach(function (f) {
+      groups[f].sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
+    });
+
+    // Collecter les dossiers (reg.folders + découverte depuis pages)
+    var folderSet = {};
+    Object.keys(reg.folders || {}).forEach(function (f) { folderSet[f] = true; });
+    Object.keys(groups).forEach(function (f) { if (f) folderSet[f] = true; });
+
+    return { groups: groups, folders: folderSet };
   }
 
   /* ══════════════════════════════════════
      TREE VIEW
      ══════════════════════════════════════ */
-
-  function renderTree() {
-    var reg = BuilderApp.state.registry;
-    if (!reg || !reg.pages) {
-      treeEl.innerHTML = '<div class="bld-recent__empty">Chargement...</div>';
-      return;
-    }
-
-    var allPages = Object.keys(reg.pages).map(function (path) {
-      return Object.assign({ path: path }, reg.pages[path]);
-    });
-
-    // Trier : homepage en tête, puis par order
-    var homepage = reg.homepage || 'index.html';
-    allPages.sort(function (a, b) {
-      if (a.path === homepage) return -1;
-      if (b.path === homepage) return 1;
-      return (a.order || 0) - (b.order || 0);
-    });
-
-    // Construire l'arbre hiérarchique
-    var tree = buildTreeStructure(allPages, reg);
-
-    var html = '';
-
-    // Rendu avec hiérarchie
-    tree.roots.forEach(function (page) {
-      html += renderTreeItem(page, reg, tree.children, 0);
-    });
-
-    treeEl.innerHTML = html || '<div class="bld-recent__empty">Aucune page.</div>';
-
-    // Bind events
-    bindTreeEvents();
-  }
 
   var INDENT_STEP = 20;
   var BASE_INDENT = 12;
@@ -106,19 +65,58 @@
   /** Raccourcit un titre de page en enlevant les suffixes répétitifs */
   function shortenTitle(title) {
     if (!title) return '';
-    // Enlever les patterns " — Nom — Site" ou " | Nom | Site"
     return title.split(/\s*[—|–]\s*/)[0].trim();
   }
 
-  /** Rendu récursif d'un item + ses enfants */
-  function renderTreeItem(page, reg, childrenMap, level) {
+  function renderTree() {
+    var reg = BuilderApp.state.registry;
+    if (!reg || !reg.pages) {
+      treeEl.innerHTML = '<div class="bld-recent__empty">Chargement...</div>';
+      return;
+    }
+
+    var tree = buildFolderTree(reg);
+    var homepage = reg.homepage || 'index.html';
+    var html = '';
+
+    // Tri de la racine : homepage d'abord, puis par order
+    var rootPages = (tree.groups[''] || []).slice();
+    rootPages.sort(function (a, b) {
+      if (a.path === homepage) return -1;
+      if (b.path === homepage) return 1;
+      return (a.order || 0) - (b.order || 0);
+    });
+
+    // Rendu des pages racine
+    rootPages.forEach(function (page) {
+      html += renderPageItem(page, reg, 0);
+    });
+
+    // Dossiers de niveau 0 triés par order
+    var rootFolders = Object.keys(tree.folders).filter(function (f) {
+      return f.indexOf('/') === -1; // Seulement les dossiers de premier niveau
+    });
+    rootFolders.sort(function (a, b) {
+      var oa = (reg.folders[a] && reg.folders[a].order) || 0;
+      var ob = (reg.folders[b] && reg.folders[b].order) || 0;
+      return oa - ob;
+    });
+
+    rootFolders.forEach(function (folder) {
+      html += renderFolderItem(folder, reg, tree, 0);
+    });
+
+    treeEl.innerHTML = html || '<div class="bld-recent__empty">Aucune page.</div>';
+    bindTreeEvents();
+  }
+
+  /** Rendu d'un noeud de page */
+  function renderPageItem(page, reg, level) {
     var isHome = reg.homepage === page.path;
     var isDraft = page.status === 'draft';
     var isActive = selectedPage === page.path;
     var isTemplate = page.isTemplate || false;
     var isLocked = isTemplate || isHome;
-    var hasChildren = childrenMap[page.path] && childrenMap[page.path].length > 0;
-    var isCollapsed = page.collapsed || false;
 
     var cls = 'bld-tree__item';
     if (isActive) cls += ' bld-tree__item--active';
@@ -137,14 +135,8 @@
       guidesHtml += '</div>';
     }
 
-    // Chevron expand/collapse (ou spacer)
-    var expandHtml = '';
-    if (hasChildren) {
-      var rotation = isCollapsed ? '0' : '90';
-      expandHtml = '<button class="bld-tree__expand" data-action="toggle-expand" style="transform: rotate(' + rotation + 'deg)">' + CHEVRON_SVG + '</button>';
-    } else {
-      expandHtml = '<span style="width: 16px; flex-shrink: 0;"></span>';
-    }
+    // Pas de chevron sur les pages (les dossiers ont le chevron)
+    var expandHtml = '<span style="width: 16px; flex-shrink: 0;"></span>';
 
     // Icône de page
     var icon;
@@ -152,8 +144,6 @@
       icon = '<svg class="bld-tree__icon bld-tree__icon--home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>';
     } else if (isTemplate) {
       icon = '<svg class="bld-tree__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>';
-    } else if (hasChildren) {
-      icon = '<svg class="bld-tree__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
     } else {
       icon = '<svg class="bld-tree__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
     }
@@ -162,12 +152,10 @@
     if (isDraft) badge = '<span class="bld-tree__badge bld-tree__badge--draft">Brouillon</span>';
     else if (isTemplate) badge = '<span class="bld-tree__badge bld-tree__badge--template">Template</span>';
 
-    var actionsHtml = '';
-
-    // Shortened title
     var displayTitle = shortenTitle(page.title) || page.path.replace(/\.html$/, '');
 
-    var html = '<div class="' + cls + '" data-path="' + escapeAttr(page.path) + '" data-level="' + level + '"'
+    return '<div class="' + cls + '" data-path="' + escapeAttr(page.path) + '" data-level="' + level + '"'
+      + ' data-type="page"'
       + (isLocked ? '' : ' draggable="true"')
       + ' style="padding-left: ' + indent + 'px; --drop-indent: ' + indent + 'px;">'
       + guidesHtml
@@ -175,13 +163,66 @@
       + icon
       + '<span class="bld-tree__name">' + escapeHtml(displayTitle) + '</span>'
       + badge
-      + actionsHtml
+      + '</div>';
+  }
+
+  /** Rendu d'un noeud de dossier + ses enfants */
+  function renderFolderItem(folderPath, reg, tree, level) {
+    var folderData = (reg.folders && reg.folders[folderPath]) || {};
+    var isCollapsed = folderData.collapsed || false;
+    var indent = BASE_INDENT + level * INDENT_STEP;
+    var folderName = folderPath.split('/').pop();
+
+    // Indentation lines
+    var guidesHtml = '';
+    if (level > 0) {
+      guidesHtml = '<div class="bld-tree__guides">';
+      for (var g = 1; g <= level; g++) {
+        guidesHtml += '<div class="bld-tree__guide" style="left: ' + (BASE_INDENT + (g - 1) * INDENT_STEP + 8) + 'px"></div>';
+      }
+      guidesHtml += '</div>';
+    }
+
+    // Chevron expand/collapse
+    var rotation = isCollapsed ? '0' : '90';
+    var expandHtml = '<button class="bld-tree__expand" data-action="toggle-folder" style="transform: rotate(' + rotation + 'deg)">' + CHEVRON_SVG + '</button>';
+
+    // Icône dossier
+    var icon = '<svg class="bld-tree__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
+
+    var html = '<div class="bld-tree__item bld-tree__item--folder" data-folder="' + escapeAttr(folderPath) + '" data-level="' + level + '"'
+      + ' data-type="folder"'
+      + ' style="padding-left: ' + indent + 'px; --drop-indent: ' + indent + 'px;">'
+      + guidesHtml
+      + expandHtml
+      + icon
+      + '<span class="bld-tree__name">' + escapeHtml(folderName) + '</span>'
       + '</div>';
 
-    // Rendu récursif des enfants (si non collapsed)
-    if (hasChildren && !isCollapsed) {
-      childrenMap[page.path].forEach(function (child) {
-        html += renderTreeItem(child, reg, childrenMap, level + 1);
+    // Contenu du dossier (si non collapsed)
+    if (!isCollapsed) {
+      // Pages dans ce dossier
+      var folderPages = (tree.groups[folderPath] || []).slice();
+      folderPages.sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
+      folderPages.forEach(function (page) {
+        html += renderPageItem(page, reg, level + 1);
+      });
+
+      // Sous-dossiers
+      var subFolders = Object.keys(tree.folders).filter(function (f) {
+        if (f === folderPath) return false;
+        // Doit commencer par folderPath/ et ne pas avoir de / supplémentaire
+        if (f.indexOf(folderPath + '/') !== 0) return false;
+        var remainder = f.substring(folderPath.length + 1);
+        return remainder.indexOf('/') === -1;
+      });
+      subFolders.sort(function (a, b) {
+        var oa = (reg.folders[a] && reg.folders[a].order) || 0;
+        var ob = (reg.folders[b] && reg.folders[b].order) || 0;
+        return oa - ob;
+      });
+      subFolders.forEach(function (sub) {
+        html += renderFolderItem(sub, reg, tree, level + 1);
       });
     }
 
@@ -196,45 +237,75 @@
     var items = treeEl.querySelectorAll('.bld-tree__item');
 
     items.forEach(function (item) {
-      var path = item.getAttribute('data-path');
+      var isFolder = item.getAttribute('data-type') === 'folder';
+      var path = isFolder ? item.getAttribute('data-folder') : item.getAttribute('data-path');
       var isReadOnly = item.classList.contains('bld-tree__item--readonly');
 
-      // Click → sélectionner
-      item.addEventListener('click', function (e) {
-        if (e.target.closest('[data-action]')) return;
-        selectPage(path);
-      });
+      if (isFolder) {
+        // Click sur dossier → expand/collapse
+        item.addEventListener('click', function (e) {
+          if (e.target.closest('[data-action]')) return;
+          toggleFolder(path);
+        });
 
-      // Bouton expand/collapse
-      var expandBtn = item.querySelector('[data-action="toggle-expand"]');
-      if (expandBtn) {
-        expandBtn.addEventListener('click', function (e) {
-          e.stopPropagation();
-          var reg = BuilderApp.state.registry;
-          if (reg && reg.pages[path]) {
-            reg.pages[path].collapsed = !reg.pages[path].collapsed;
-            BuilderApp.saveRegistry();
-            renderTree();
+        // Bouton expand/collapse
+        var expandBtn = item.querySelector('[data-action="toggle-folder"]');
+        if (expandBtn) {
+          expandBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            toggleFolder(path);
+          });
+        }
+
+        // Dossier = droppable (zone 100% = déposer dedans)
+        item.addEventListener('dragover', function (e) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          clearDropIndicators();
+          item.classList.add('bld-tree__item--drop-inside');
+        });
+
+        item.addEventListener('dragleave', function (e) {
+          if (!item.contains(e.relatedTarget)) {
+            item.classList.remove('bld-tree__item--drop-inside');
           }
         });
-      }
 
-      // Drag & drop (seulement pour pages non readOnly)
-      if (!isReadOnly) {
-        item.addEventListener('dragstart', function (e) {
-          e.dataTransfer.setData('text/plain', path);
-          e.dataTransfer.effectAllowed = 'move';
-          item.classList.add('bld-tree__item--dragging');
-        });
-
-        item.addEventListener('dragend', function () {
-          item.classList.remove('bld-tree__item--dragging');
+        item.addEventListener('drop', function (e) {
+          e.preventDefault();
           clearDropIndicators();
+          var draggedPath = e.dataTransfer.getData('text/plain');
+          if (!draggedPath) return;
+          movePageToFolder(draggedPath, path);
         });
-      }
 
-      // Drop targets (toutes les pages non readOnly)
-      if (!isReadOnly) {
+        // Context menu sur dossier pour suppression
+        item.addEventListener('contextmenu', function (e) {
+          e.preventDefault();
+          showFolderContextMenu(e, path);
+        });
+      } else {
+        // Click → sélectionner
+        item.addEventListener('click', function (e) {
+          if (e.target.closest('[data-action]')) return;
+          selectPage(path);
+        });
+
+        // Drag & drop (seulement pour pages non readOnly)
+        if (!isReadOnly) {
+          item.addEventListener('dragstart', function (e) {
+            e.dataTransfer.setData('text/plain', path);
+            e.dataTransfer.effectAllowed = 'move';
+            item.classList.add('bld-tree__item--dragging');
+          });
+
+          item.addEventListener('dragend', function () {
+            item.classList.remove('bld-tree__item--dragging');
+            clearDropIndicators();
+          });
+        }
+
+        // Drop targets (toutes les pages non readOnly)
         item.addEventListener('dragover', function (e) {
           e.preventDefault();
           e.dataTransfer.dropEffect = 'move';
@@ -245,22 +316,18 @@
 
           clearDropIndicators();
 
-          // Zone haute (25%) = insérer avant
-          // Zone centre (50%) = imbriquer (devenir enfant)
-          // Zone basse (25%) = insérer après
-          if (y < h * 0.25) {
+          // Zone haute (50%) = insérer avant
+          // Zone basse (50%) = insérer après
+          if (y < h * 0.5) {
             item.classList.add('bld-tree__item--drop-before');
-          } else if (y > h * 0.75) {
-            item.classList.add('bld-tree__item--drop-after');
           } else {
-            item.classList.add('bld-tree__item--drop-inside');
+            item.classList.add('bld-tree__item--drop-after');
           }
         });
 
         item.addEventListener('dragleave', function (e) {
-          // Vérifier qu'on quitte bien l'élément (pas un enfant)
           if (!item.contains(e.relatedTarget)) {
-            item.classList.remove('bld-tree__item--drop-before', 'bld-tree__item--drop-after', 'bld-tree__item--drop-inside');
+            item.classList.remove('bld-tree__item--drop-before', 'bld-tree__item--drop-after');
           }
         });
 
@@ -275,19 +342,23 @@
           var y = e.clientY - rect.top;
           var h = rect.height;
 
-          if (y < h * 0.25) {
-            // Insérer avant
+          if (y < h * 0.5) {
             movePage(draggedPath, path, 'before');
-          } else if (y > h * 0.75) {
-            // Insérer après
-            movePage(draggedPath, path, 'after');
           } else {
-            // Imbriquer comme enfant
-            nestPage(draggedPath, path);
+            movePage(draggedPath, path, 'after');
           }
         });
       }
     });
+  }
+
+  function toggleFolder(folderPath) {
+    var reg = BuilderApp.state.registry;
+    if (!reg.folders) reg.folders = {};
+    if (!reg.folders[folderPath]) reg.folders[folderPath] = { order: 0, collapsed: false };
+    reg.folders[folderPath].collapsed = !reg.folders[folderPath].collapsed;
+    BuilderApp.saveRegistry();
+    renderTree();
   }
 
   function clearDropIndicators() {
@@ -297,33 +368,146 @@
   }
 
   /* ══════════════════════════════════════
-     DRAG & DROP — Réordonnement + hiérarchie
+     FOLDER CONTEXT MENU
      ══════════════════════════════════════ */
 
-  /** Déplace une page avant ou après une cible (même niveau que la cible) */
+  function showFolderContextMenu(e, folderPath) {
+    // Fermer tout menu existant
+    var existing = document.querySelector('.bld-context-menu');
+    if (existing) existing.remove();
+
+    var menu = document.createElement('div');
+    menu.className = 'bld-context-menu';
+    menu.style.cssText = 'position: fixed; top: ' + e.clientY + 'px; left: ' + e.clientX + 'px; z-index: 9999; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 6px; padding: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-width: 160px;';
+
+    var deleteBtn = document.createElement('button');
+    deleteBtn.style.cssText = 'display: block; width: 100%; padding: 6px 12px; background: none; border: none; cursor: pointer; text-align: left; font-size: 13px; color: var(--color-error, #ef4444); border-radius: 4px;';
+    deleteBtn.textContent = 'Supprimer le dossier';
+    deleteBtn.addEventListener('mouseenter', function () { deleteBtn.style.background = 'var(--color-bg-hover, #f5f5f5)'; });
+    deleteBtn.addEventListener('mouseleave', function () { deleteBtn.style.background = 'none'; });
+    deleteBtn.addEventListener('click', function () {
+      menu.remove();
+      deleteFolder(folderPath);
+    });
+
+    menu.appendChild(deleteBtn);
+    document.body.appendChild(menu);
+
+    // Fermer au clic ailleurs
+    function closeMenu(ev) {
+      if (!menu.contains(ev.target)) {
+        menu.remove();
+        document.removeEventListener('click', closeMenu);
+      }
+    }
+    setTimeout(function () { document.addEventListener('click', closeMenu); }, 0);
+  }
+
+  async function deleteFolder(folderPath) {
+    var reg = BuilderApp.state.registry;
+    // Vérifier qu'aucune page n'est dans ce dossier
+    var hasPages = Object.keys(reg.pages).some(function (p) {
+      return getFolderFromPath(p) === folderPath;
+    });
+    if (hasPages) {
+      BuilderApp.showToast('Le dossier contient des pages, videz-le d\'abord', 'error');
+      return;
+    }
+
+    // Vérifier qu'il n'y a pas de sous-dossiers
+    var hasSubFolders = Object.keys(reg.folders || {}).some(function (f) {
+      return f !== folderPath && f.indexOf(folderPath + '/') === 0;
+    });
+    if (hasSubFolders) {
+      BuilderApp.showToast('Le dossier contient des sous-dossiers', 'error');
+      return;
+    }
+
+    var ok = await BuilderModal.confirm({
+      title: 'Supprimer le dossier',
+      message: 'Supprimer le dossier « ' + folderPath + ' » ? (doit être vide)',
+      confirmText: 'Supprimer',
+      variant: 'danger-fill'
+    });
+    if (!ok) return;
+
+    try {
+      await BuilderAPI.pageRmdir(folderPath);
+      delete reg.folders[folderPath];
+      saveAndRefresh();
+      BuilderApp.showToast('Dossier supprimé', 'success');
+    } catch (e) {
+      BuilderApp.showToast('Erreur : ' + e.message, 'error');
+    }
+  }
+
+  /* ══════════════════════════════════════
+     DRAG & DROP — Réordonnement + déplacement entre dossiers
+     ══════════════════════════════════════ */
+
+  /** Déplace une page dans un dossier cible */
+  function movePageToFolder(oldPath, targetFolder) {
+    var reg = BuilderApp.state.registry;
+    if (!reg || !reg.pages || !reg.pages[oldPath]) return;
+
+    var homepage = reg.homepage || 'index.html';
+    if (oldPath === homepage) {
+      BuilderApp.showToast('La page d\'accueil ne peut pas être déplacée', 'error');
+      return;
+    }
+
+    var basename = oldPath.split('/').pop();
+    var newPath = targetFolder ? targetFolder + '/' + basename : basename;
+
+    if (newPath === oldPath) return;
+
+    if (reg.pages[newPath]) {
+      BuilderApp.showToast('Un fichier existe déjà : ' + newPath, 'error');
+      return;
+    }
+
+    BuilderAPI.pageRename(oldPath, newPath).then(function () {
+      var pageData = reg.pages[oldPath];
+      delete reg.pages[oldPath];
+      pageData.slug = newPath.replace(/\.html$/, '');
+      pageData.updatedAt = new Date().toISOString();
+      reg.pages[newPath] = pageData;
+
+      // S'assurer que le dossier cible est enregistré
+      if (targetFolder && reg.folders && !reg.folders[targetFolder]) {
+        reg.folders[targetFolder] = { order: Object.keys(reg.folders).length, collapsed: false };
+      }
+
+      // Mettre à jour selectedPage si c'était cette page
+      if (selectedPage === oldPath) selectedPage = newPath;
+
+      saveAndRefresh();
+      if (selectedPage === newPath) renderMetaPanel(newPath);
+      BuilderApp.showToast('Page déplacée', 'success');
+    }).catch(function (e) {
+      BuilderApp.showToast('Erreur : ' + e.message, 'error');
+    });
+  }
+
+  /** Déplace une page avant ou après une cible (même dossier que la cible) */
   function movePage(draggedPath, targetPath, position) {
     var reg = BuilderApp.state.registry;
     if (!reg || !reg.pages) return;
 
     var homepage = reg.homepage || 'index.html';
-
-    // Protéger la homepage : elle reste toujours à la racine, pas déplaçable
     if (draggedPath === homepage) {
       BuilderApp.showToast('La page d\'accueil ne peut pas être déplacée', 'error');
       return;
     }
 
-    var targetPage = reg.pages[targetPath];
-    if (!targetPage) return;
-
-    // La page déplacée prend le même parent que la cible
-    var targetParent = targetPage.parent || null;
-    var currentParent = reg.pages[draggedPath].parent || null;
+    var targetFolder = getFolderFromPath(targetPath);
+    var draggedFolder = getFolderFromPath(draggedPath);
 
     function reorder(actualDraggedPath) {
-      // Récupérer toutes les pages du même parent
+      var folder = getFolderFromPath(actualDraggedPath);
+      // Récupérer toutes les pages du même dossier
       var siblings = Object.keys(reg.pages).filter(function (p) {
-        return (reg.pages[p].parent || null) === targetParent;
+        return getFolderFromPath(p) === folder;
       }).map(function (p) {
         return { path: p, order: reg.pages[p].order || 0 };
       });
@@ -336,11 +520,9 @@
       var targetIdx = newOrder.findIndex(function (p) { return p.path === targetPath; });
       if (targetIdx === -1) return;
 
-      // Insérer avant ou après la cible
       var insertIdx = position === 'before' ? targetIdx : targetIdx + 1;
       newOrder.splice(insertIdx, 0, { path: actualDraggedPath });
 
-      // Mettre à jour les ordres
       newOrder.forEach(function (p, i) {
         if (reg.pages[p.path]) reg.pages[p.path].order = i;
       });
@@ -349,128 +531,33 @@
       BuilderApp.saveRegistry();
     }
 
-    // Si le parent change, déplacer physiquement le fichier
-    if (currentParent !== targetParent) {
-      movePageToDisk(draggedPath, targetParent, reg).then(function () {
-        var newPath = computeNewPath(draggedPath, targetParent);
-        var actualPath = reg.pages[newPath] ? newPath : draggedPath;
-        reorder(actualPath);
+    // Si le dossier change, déplacer physiquement d'abord
+    if (draggedFolder !== targetFolder) {
+      var basename = draggedPath.split('/').pop();
+      var newPath = targetFolder ? targetFolder + '/' + basename : basename;
+
+      if (reg.pages[newPath]) {
+        BuilderApp.showToast('Un fichier existe déjà : ' + newPath, 'error');
+        return;
+      }
+
+      BuilderAPI.pageRename(draggedPath, newPath).then(function () {
+        var pageData = reg.pages[draggedPath];
+        delete reg.pages[draggedPath];
+        pageData.slug = newPath.replace(/\.html$/, '');
+        pageData.updatedAt = new Date().toISOString();
+        reg.pages[newPath] = pageData;
+
+        if (selectedPage === draggedPath) selectedPage = newPath;
+
+        reorder(newPath);
+        BuilderApp.showToast('Page déplacée', 'success');
       }).catch(function (e) {
-        if (e.message !== 'exists') {
-          BuilderApp.showToast('Erreur : ' + e.message, 'error');
-        }
+        BuilderApp.showToast('Erreur : ' + e.message, 'error');
       });
     } else {
       reorder(draggedPath);
     }
-  }
-
-  /**
-   * Calcule le nouveau chemin physique d'une page en fonction de son parent.
-   * Parent "confidentialite.html" → dossier "confidentialite/"
-   * Parent null → racine
-   */
-  function computeNewPath(filename, newParentPath) {
-    // Extraire le nom de fichier seul (sans dossier)
-    var basename = filename.split('/').pop();
-    if (!newParentPath) {
-      return basename; // retour à la racine
-    }
-    // Le dossier du parent = chemin complet du parent (sans .html)
-    var parentDir = newParentPath.replace(/\.html$/, '');
-    return parentDir + '/' + basename;
-  }
-
-  /**
-   * Déplace physiquement une page (fichier sur disque + registry).
-   * Retourne une Promise.
-   */
-  function movePageToDisk(oldPath, newParentPath, reg) {
-    var newPath = computeNewPath(oldPath, newParentPath);
-
-    // Si le chemin ne change pas, juste mettre à jour le parent dans le registry
-    if (newPath === oldPath) {
-      reg.pages[oldPath].parent = newParentPath || null;
-      return Promise.resolve();
-    }
-
-    // Vérifier que la cible n'existe pas déjà
-    if (reg.pages[newPath]) {
-      BuilderApp.showToast('Un fichier existe déjà à ce chemin : ' + newPath, 'error');
-      return Promise.reject(new Error('exists'));
-    }
-
-    // Déplacer le fichier via l'API
-    return BuilderAPI.pageRename(oldPath, newPath).then(function () {
-      // Mettre à jour la clé dans le registry
-      var pageData = reg.pages[oldPath];
-      delete reg.pages[oldPath];
-      pageData.parent = newParentPath || null;
-      pageData.slug = newPath.replace(/\.html$/, '');
-      pageData.updatedAt = new Date().toISOString();
-      reg.pages[newPath] = pageData;
-
-      // Mettre à jour les enfants qui référencent l'ancien chemin comme parent
-      Object.keys(reg.pages).forEach(function (p) {
-        if (reg.pages[p].parent === oldPath) {
-          reg.pages[p].parent = newPath;
-        }
-      });
-
-      // Mettre à jour selectedPage si c'était cette page
-      if (selectedPage === oldPath) {
-        selectedPage = newPath;
-      }
-
-      // Mettre à jour homepage si c'était cette page
-      if (reg.homepage === oldPath) {
-        reg.homepage = newPath;
-      }
-    });
-  }
-
-  /** Imbrique une page comme enfant d'une autre (avec déplacement physique) */
-  function nestPage(childPath, parentPath) {
-    var reg = BuilderApp.state.registry;
-    if (!reg || !reg.pages) return;
-
-    // Protection : ne pas imbriquer dans soi-même
-    if (childPath === parentPath) return;
-
-    // Protection : ne pas imbriquer un parent dans son propre descendant (boucle)
-    if (isDescendant(parentPath, childPath, reg)) {
-      BuilderApp.showToast('Impossible : créerait une boucle', 'error');
-      return;
-    }
-
-    // Protéger la homepage
-    if (childPath === (reg.homepage || 'index.html')) {
-      BuilderApp.showToast('La page d\'accueil ne peut pas être imbriquée', 'error');
-      return;
-    }
-
-    movePageToDisk(childPath, parentPath, reg).then(function () {
-      // Trouver le nouveau chemin (peut avoir changé)
-      var newPath = computeNewPath(childPath, parentPath);
-      var actualPath = reg.pages[newPath] ? newPath : childPath;
-
-      // Mettre l'enfant à la fin des enfants existants du parent
-      var existingChildren = Object.keys(reg.pages).filter(function (p) {
-        return reg.pages[p].parent === parentPath && p !== actualPath;
-      });
-      reg.pages[actualPath].order = existingChildren.length;
-
-      // Déplier le parent pour montrer le nouvel enfant
-      if (reg.pages[parentPath]) reg.pages[parentPath].collapsed = false;
-
-      renderTree();
-      BuilderApp.saveRegistry();
-      BuilderApp.showToast('Page déplacée', 'success');
-    }).catch(function (e) {
-      if (e.message !== 'exists') {
-        BuilderApp.showToast('Erreur lors du déplacement : ' + e.message, 'error');
-      }
-    });
   }
 
   /* ══════════════════════════════════════
@@ -494,6 +581,7 @@
     var isHome = reg.homepage === path;
     var isProtected = path === 'index.html' || path === '404.html';
     var isTemplate = page.isTemplate || false;
+    var currentFolder = getFolderFromPath(path);
 
     // Panel lecture seule pour les templates uniquement
     if (isTemplate) {
@@ -508,19 +596,13 @@
         + '<label class="bld-field__label">Chemin</label>'
         + '<input class="bld-field__input" type="text" value="' + escapeAttr(path) + '" readonly style="opacity: 0.6;">'
         + '</div>'
+        + (currentFolder ? '<div class="bld-field">'
+        + '<label class="bld-field__label">Dossier</label>'
+        + '<input class="bld-field__input" type="text" value="' + escapeAttr(currentFolder) + '" readonly style="opacity: 0.6;">'
+        + '</div>' : '')
         + '</div>';
-
       return;
     }
-
-    // Construire la liste des pages parentes possibles (pour le select)
-    var parentOptions = '<option value="">Aucune (racine)</option>';
-    Object.keys(reg.pages).forEach(function (p) {
-      if (p === path) return; // pas soi-même
-      if (isDescendant(p, path, reg)) return; // pas un descendant
-      var selected = (page.parent === p) ? ' selected' : '';
-      parentOptions += '<option value="' + escapeAttr(p) + '"' + selected + '>' + escapeHtml(reg.pages[p].title || p) + '</option>';
-    });
 
     // Toolbar icons
     var svgDraft = page.status === 'draft'
@@ -532,6 +614,18 @@
 
     var isDraft = page.status === 'draft';
     var draftTitle = isDraft ? 'Publier' : 'Brouillon';
+
+    // Champ dossier (lecture seule + bouton déplacer)
+    var folderFieldHtml = '';
+    if (!isHome) {
+      folderFieldHtml = '<div class="bld-field">'
+        + '<label class="bld-field__label">Dossier</label>'
+        + '<div style="display: flex; gap: 8px; align-items: center;">'
+        + '<input class="bld-field__input" type="text" value="' + escapeAttr(currentFolder || '(racine)') + '" readonly style="opacity: 0.6; flex: 1;">'
+        + '<button class="btn btn--sm" data-action="move-to-folder" title="Déplacer dans un dossier">Déplacer</button>'
+        + '</div>'
+        + '</div>';
+    }
 
     metaPanel.innerHTML = ''
       + '<div class="bld-meta">'
@@ -556,12 +650,7 @@
       + '<input class="bld-field__input" type="text" data-meta="slug" value="' + escapeAttr(page.slug || '') + '">'
       + '</div>'
 
-      + (isHome ? '' : '<div class="bld-field">'
-      + '<label class="bld-field__label">Page parente</label>'
-      + '<select class="bld-field__input" data-meta-select="parent">'
-      + parentOptions
-      + '</select>'
-      + '</div>')
+      + folderFieldHtml
 
       + '<div class="bld-field__sep"></div>'
 
@@ -624,7 +713,7 @@
           if (duplicate) {
             input.style.borderColor = 'var(--color-error, #ef4444)';
             input.title = 'Ce slug est déjà utilisé par une autre page';
-            return; // Ne pas sauvegarder
+            return;
           } else {
             input.style.borderColor = '';
             input.title = '';
@@ -646,7 +735,6 @@
         var isCollapsed = textarea.classList.contains('bld-field__textarea--collapsed');
         textarea.classList.toggle('bld-field__textarea--collapsed', !isCollapsed);
         textarea.classList.toggle('bld-field__textarea--expanded', isCollapsed);
-        // Toggle icon
         if (isCollapsed) {
           btn.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><polyline points="6 12 6 10 4 10"/><polyline points="10 4 10 6 12 6"/><line x1="6" y1="10" x2="9" y2="7"/><line x1="10" y1="6" x2="7" y2="9"/></svg>';
           btn.title = 'Réduire';
@@ -666,43 +754,11 @@
       });
     });
 
-    // Select parent
-    var parentSelect = metaPanel.querySelector('[data-meta-select="parent"]');
-    if (parentSelect) {
-      parentSelect.addEventListener('change', function () {
-        var newParent = parentSelect.value || null;
-
-        // Vérification anti-boucle
-        if (newParent && isDescendant(newParent, path, reg)) {
-          BuilderApp.showToast('Impossible : créerait une boucle', 'error');
-          parentSelect.value = page.parent || '';
-          return;
-        }
-
-        // Protéger la homepage
-        if (newParent && path === (reg.homepage || 'index.html')) {
-          BuilderApp.showToast('La page d\'accueil ne peut pas être imbriquée', 'error');
-          parentSelect.value = '';
-          return;
-        }
-
-        // Déplacer physiquement le fichier
-        movePageToDisk(path, newParent, reg).then(function () {
-          var newPath = computeNewPath(path, newParent);
-          var actualPath = reg.pages[newPath] ? newPath : path;
-          saveAndRefresh();
-          // Re-sélectionner la page (le path a pu changer)
-          if (actualPath !== path) {
-            selectPage(actualPath);
-          }
-          BuilderApp.showToast('Page déplacée', 'success');
-        }).catch(function (e) {
-          // Remettre l'ancienne valeur du select
-          parentSelect.value = page.parent || '';
-          if (e.message !== 'exists') {
-            BuilderApp.showToast('Erreur : ' + e.message, 'error');
-          }
-        });
+    // Bouton déplacer dans un dossier
+    var moveBtn = metaPanel.querySelector('[data-action="move-to-folder"]');
+    if (moveBtn) {
+      moveBtn.addEventListener('click', function () {
+        showMoveFolderModal(path);
       });
     }
 
@@ -720,8 +776,6 @@
     if (setHomeBtn) {
       setHomeBtn.addEventListener('click', function () {
         reg.homepage = path;
-        // Forcer la homepage à la racine et en première position
-        page.parent = null;
         page.order = -1;
         page.updatedAt = new Date().toISOString();
         saveAndRefresh();
@@ -744,7 +798,6 @@
         if (!newFilename) return;
         if (!newFilename.endsWith('.html')) newFilename += '.html';
 
-        // Vérifier que le slug n'existe pas
         var newSlug = newFilename.replace(/\.html$/, '');
         var slugExists = Object.keys(reg.pages).some(function (p) {
           return reg.pages[p].slug === newSlug;
@@ -768,7 +821,6 @@
             customHead: page.customHead || '',
             customBody: page.customBody || '',
             order: pageCount,
-            parent: page.parent || null,
             readOnly: false,
             isTemplate: false,
             createdAt: now,
@@ -794,12 +846,6 @@
         });
         if (!ok) return;
         BuilderAPI.pageDelete(path).then(function () {
-          // Dé-nester les enfants de la page supprimée
-          Object.keys(reg.pages).forEach(function (p) {
-            if (reg.pages[p].parent === path) {
-              reg.pages[p].parent = null;
-            }
-          });
           delete reg.pages[path];
           selectedPage = null;
           saveAndRefresh();
@@ -810,6 +856,36 @@
         });
       });
     }
+  }
+
+  /** Modal de déplacement vers un dossier */
+  async function showMoveFolderModal(pagePath) {
+    var reg = BuilderApp.state.registry;
+    var currentFolder = getFolderFromPath(pagePath);
+    var folders = ['(racine)'].concat(Object.keys(reg.folders || {}).sort());
+
+    var options = folders.map(function (f) {
+      var val = f === '(racine)' ? '' : f;
+      var label = f === '(racine)' ? 'Racine' : f;
+      var selected = val === currentFolder ? ' (actuel)' : '';
+      return label + selected;
+    });
+
+    var choice = await BuilderModal.prompt({
+      title: 'Déplacer dans un dossier',
+      message: 'Dossier actuel : ' + (currentFolder || 'racine'),
+      label: 'Nom du dossier cible (vide = racine)',
+      value: currentFolder,
+      confirmText: 'Déplacer',
+      variant: 'primary'
+    });
+
+    if (choice === null) return; // annulé
+    var targetFolder = choice.trim();
+
+    if (targetFolder === currentFolder) return;
+
+    movePageToFolder(pagePath, targetFolder);
   }
 
   function saveAndRefresh() {
@@ -855,7 +931,6 @@
         customHead: '',
         customBody: '',
         order: pageCount,
-        parent: null,
         readOnly: false,
         createdAt: now,
         updatedAt: now
@@ -870,6 +945,36 @@
     });
   }
 
+  /* ══════════════════════════════════════
+     NEW FOLDER MODAL
+     ══════════════════════════════════════ */
+
+  async function openNewFolderModal() {
+    var folderName = await BuilderModal.prompt({
+      title: 'Nouveau dossier',
+      message: 'Créer un nouveau dossier dans pages/',
+      label: 'Nom du dossier',
+      value: '',
+      confirmText: 'Créer',
+      variant: 'primary'
+    });
+
+    if (!folderName) return;
+    folderName = folderName.trim().replace(/[^a-zA-Z0-9_\-]/g, '-').toLowerCase();
+    if (!folderName) return;
+
+    try {
+      await BuilderAPI.pageMkdir(folderName);
+      var reg = BuilderApp.state.registry;
+      if (!reg.folders) reg.folders = {};
+      reg.folders[folderName] = { order: Object.keys(reg.folders).length, collapsed: false };
+      saveAndRefresh();
+      BuilderApp.showToast('Dossier « ' + folderName + ' » créé', 'success');
+    } catch (e) {
+      BuilderApp.showToast('Erreur : ' + e.message, 'error');
+    }
+  }
+
   // Bind buttons
   document.getElementById('btnNewPage').addEventListener('click', openNewPageModal);
   document.getElementById('actionNewPage').addEventListener('click', openNewPageModal);
@@ -879,6 +984,12 @@
     if (e.key === 'Enter') createPage();
     if (e.key === 'Escape') closeNewPageModal();
   });
+
+  // Bouton nouveau dossier (s'il existe dans le DOM)
+  var btnNewFolder = document.getElementById('btnNewFolder');
+  if (btnNewFolder) {
+    btnNewFolder.addEventListener('click', openNewFolderModal);
+  }
 
   // Close modal on overlay click
   modal.addEventListener('click', function (e) {
@@ -892,8 +1003,16 @@
       var reg = BuilderApp.state.registry;
       var now = new Date().toISOString();
 
+      if (!reg.folders) reg.folders = {};
+
+      // Synchroniser les dossiers depuis le serveur
+      (resp.folders || []).forEach(function (f) {
+        if (!reg.folders[f]) {
+          reg.folders[f] = { order: Object.keys(reg.folders).length, collapsed: false };
+        }
+      });
+
       // Ajouter les pages présentes sur le disque mais pas dans le registre
-      // + mettre à jour readOnly/isTemplate sur les pages existantes
       resp.pages.forEach(function (page) {
         if (!reg.pages[page.path]) {
           var pageCount = Object.keys(reg.pages).length;
@@ -908,25 +1027,21 @@
             customHead: '',
             customBody: '',
             order: pageCount,
-            parent: null,
             readOnly: page.readOnly || false,
             isTemplate: page.isTemplate || false,
             createdAt: now,
             updatedAt: now
           };
         } else {
-          // Mettre à jour readOnly depuis le serveur (les pages existantes gardent leur isTemplate du registre)
           reg.pages[page.path].readOnly = page.readOnly || false;
         }
-      });
 
-      // Auto-détection parent depuis la structure de dossiers
-      Object.keys(reg.pages).forEach(function (pagePath) {
-        if (pagePath.indexOf('/') !== -1 && !reg.pages[pagePath].parent) {
-          var folder = pagePath.split('/')[0];
-          var potentialParent = folder + '.html';
-          if (reg.pages[potentialParent]) {
-            reg.pages[pagePath].parent = potentialParent;
+        // S'assurer que le dossier parent est enregistré
+        var slash = page.path.lastIndexOf('/');
+        if (slash !== -1) {
+          var folder = page.path.substring(0, slash);
+          if (!reg.folders[folder]) {
+            reg.folders[folder] = { order: Object.keys(reg.folders).length, collapsed: false };
           }
         }
       });
@@ -936,6 +1051,17 @@
       Object.keys(reg.pages).forEach(function (path) {
         if (diskPaths.indexOf(path) === -1) {
           delete reg.pages[path];
+        }
+      });
+
+      // Supprimer les dossiers qui n'existent plus
+      var serverFolders = resp.folders || [];
+      Object.keys(reg.folders).forEach(function (f) {
+        if (serverFolders.indexOf(f) === -1) {
+          var hasPages = Object.keys(reg.pages).some(function (p) {
+            return p.indexOf(f + '/') === 0;
+          });
+          if (!hasPages) delete reg.folders[f];
         }
       });
 

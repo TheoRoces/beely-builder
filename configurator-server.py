@@ -80,16 +80,22 @@ def extract_title(html_content):
     return html_mod.unescape(match.group(1).strip()) if match else ''
 
 
-def scan_html_pages():
-    """Scanne les fichiers .html dans le dossier pages/."""
+def scan_pages_and_folders():
+    """Scanne les fichiers .html et les dossiers dans le dossier pages/."""
     pages = []
+    folders = set()
     pages_root = os.path.join(ROOT, PAGES_DIR)
     if not os.path.isdir(pages_root):
-        return pages
+        return pages, sorted(folders)
 
     for dirpath, dirnames, filenames in os.walk(pages_root):
         # Ignorer les dossiers css/ et js/ (assets custom, pas des pages)
         dirnames[:] = [d for d in dirnames if d not in ('css', 'js')]
+
+        # Collecter les dossiers
+        for d in dirnames:
+            rel = os.path.relpath(os.path.join(dirpath, d), pages_root).replace('\\', '/')
+            folders.add(rel)
 
         for fname in sorted(filenames):
             if not fname.endswith('.html'):
@@ -120,9 +126,8 @@ def scan_html_pages():
 
     # isTemplate n'est pas auto-détecté par le scan.
     # C'est le registre (pages.json) qui fait foi.
-    # Le scan retourne isTemplate: False par défaut.
 
-    return pages
+    return pages, sorted(folders)
 
 
 def _adjust_page_paths(filepath, old_depth, new_depth):
@@ -177,6 +182,10 @@ class BuilderHandler(SimpleHTTPRequestHandler):
             self._handle_page_rename(body)
         elif path == '/api/page-duplicate':
             self._handle_page_duplicate(body)
+        elif path == '/api/page-mkdir':
+            self._handle_page_mkdir(body)
+        elif path == '/api/page-rmdir':
+            self._handle_page_rmdir(body)
 
         # ── Icônes ──
         elif path == '/api/icons-list':
@@ -367,8 +376,8 @@ class BuilderHandler(SimpleHTTPRequestHandler):
     # ═══════════════════════════════════════════════════════
 
     def _handle_pages_list(self):
-        pages = scan_html_pages()
-        self._json(200, {'ok': True, 'pages': pages})
+        pages, folders = scan_pages_and_folders()
+        self._json(200, {'ok': True, 'pages': pages, 'folders': folders})
 
     def _handle_page_create(self, body):
         filename = body.get('filename', '')
@@ -421,17 +430,6 @@ class BuilderHandler(SimpleHTTPRequestHandler):
         if not os.path.exists(filepath):
             return self._json(404, {'error': 'Fichier introuvable'})
         os.remove(filepath)
-
-        # Nettoyer le dossier parent s'il est vide
-        parent_dir = os.path.dirname(filepath)
-        pages_root = os.path.realpath(os.path.join(ROOT, PAGES_DIR))
-        if parent_dir != pages_root:
-            try:
-                if os.path.isdir(parent_dir) and not os.listdir(parent_dir):
-                    os.rmdir(parent_dir)
-            except OSError:
-                pass
-
         self._json(200, {'ok': True})
 
     def _handle_page_rename(self, body):
@@ -463,16 +461,6 @@ class BuilderHandler(SimpleHTTPRequestHandler):
         if old_depth != new_depth:
             _adjust_page_paths(new_filepath, old_depth, new_depth)
 
-        # Nettoyer le dossier source s'il est vide
-        old_parent_dir = os.path.dirname(old_filepath)
-        pages_root = os.path.realpath(os.path.join(ROOT, PAGES_DIR))
-        if old_parent_dir != pages_root:
-            try:
-                if os.path.isdir(old_parent_dir) and not os.listdir(old_parent_dir):
-                    os.rmdir(old_parent_dir)
-            except OSError:
-                pass
-
         self._json(200, {'ok': True, 'oldPath': old_path, 'newPath': new_path})
 
     def _handle_page_duplicate(self, body):
@@ -498,6 +486,41 @@ class BuilderHandler(SimpleHTTPRequestHandler):
             os.makedirs(parent_dir, exist_ok=True)
         shutil.copy2(source_filepath, new_filepath)
         self._json(200, {'ok': True, 'path': new_filename})
+
+    def _handle_page_mkdir(self, body):
+        """Créer un dossier dans pages/."""
+        folder_name = body.get('name', '')
+        if not folder_name:
+            return self._json(400, {'error': 'Nom de dossier requis'})
+        if '..' in folder_name or folder_name.startswith('/'):
+            return self._json(400, {'error': 'Nom de dossier invalide'})
+        if is_protected_path(folder_name):
+            return self._json(403, {'error': 'Dossier protégé'})
+        target = page_safe_path(folder_name)
+        if not target:
+            return self._json(400, {'error': 'Chemin invalide'})
+        if os.path.exists(target):
+            return self._json(409, {'error': 'Ce dossier existe déjà'})
+        os.makedirs(target, exist_ok=True)
+        self._json(200, {'ok': True, 'folder': folder_name})
+
+    def _handle_page_rmdir(self, body):
+        """Supprimer un dossier vide dans pages/."""
+        folder_path = body.get('path', '')
+        if not folder_path:
+            return self._json(400, {'error': 'Chemin de dossier requis'})
+        if '..' in folder_path or folder_path.startswith('/'):
+            return self._json(400, {'error': 'Chemin invalide'})
+        target = page_safe_path(folder_path)
+        if not target:
+            return self._json(400, {'error': 'Chemin invalide'})
+        if not os.path.isdir(target):
+            return self._json(404, {'error': 'Dossier introuvable'})
+        # Vérifier que le dossier est vide
+        if os.listdir(target):
+            return self._json(409, {'error': 'Le dossier n\'est pas vide'})
+        os.rmdir(target)
+        self._json(200, {'ok': True})
 
     # ═══════════════════════════════════════════════════════
     #  ICÔNES
