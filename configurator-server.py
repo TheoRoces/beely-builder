@@ -41,7 +41,8 @@ ALLOWED_CFG_FILES = {'config-site.js', '.env', '.deploy.env', '.htpasswd'}
 
 # Dossiers protégés (pas d'écriture/suppression de pages)
 PROTECTED_DIRS = {'core', 'wireframes', 'api', 'components', 'snippets',
-                  'assets', 'builder', 'data', '.git', '.claude', '.vscode'}
+                  'assets', 'builder', 'data', 'docs',
+                  '.git', '.claude', '.vscode', '.framework'}
 
 # Fichiers protégés contre la suppression
 PROTECTED_FILES = {'index.html', '404.html', 'configurator.html', 'config-site.js'}
@@ -80,7 +81,7 @@ def scan_html_pages():
         rel_dir = os.path.relpath(dirpath, ROOT)
         if rel_dir != '.':
             top = rel_dir.replace('\\', '/').split('/')[0]
-            if top in PROTECTED_DIRS:
+            if top in PROTECTED_DIRS or top.startswith('.'):
                 dirnames.clear()
                 continue
 
@@ -775,8 +776,6 @@ class BuilderHandler(SimpleHTTPRequestHandler):
                 print(f'\033[32m[CFG]\033[0m {req}')
             elif '/api/page' in path or '/api/registry' in path:
                 print(f'\033[34m[PAGE]\033[0m {req}')
-            elif '/api/wireframe' in path:
-                print(f'\033[35m[WF]\033[0m {req}')
             elif '/api/media' in path:
                 print(f'\033[36m[MEDIA]\033[0m {req}')
             elif '/api/deploy' in path or '/api/git' in path:
