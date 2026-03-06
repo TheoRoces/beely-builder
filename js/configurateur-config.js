@@ -31,7 +31,7 @@
         // Retirer les règles qui affectent html/body globalement
         css = css.replace(/html\s*\{[^}]*\}/g, '');
         // Supprimer les styles de .cfg-layout, .cfg-sidebar, .cfg-content
-        // car ils sont redéfinis dans builder.css via .bld-configurator-embed
+        // car ils sont redéfinis dans configurateur.css via .bld-configurator-embed
         css = css.replace(/\.cfg-layout\s*\{[^}]*\}/g, '');
         css = css.replace(/\.cfg-sidebar\s*\{[^}]*\}/g, '');
         css = css.replace(/\.cfg-content\s*\{[^}]*\}/g, '');

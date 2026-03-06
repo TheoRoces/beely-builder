@@ -758,7 +758,7 @@ body { margin: 0; overflow: hidden; height: 100vh; }
 }
 
 /* Layout 2 colonnes style Pages — seule source de vérité (les styles
-   originaux de configurator.html sont supprimés par builder-configurator.js) */
+   originaux de configurator.html sont supprimés par configurateur-config.js) */
 .bld-configurator-embed .cfg-layout {
   display: grid !important;
   grid-template-columns: 240px minmax(0, 1fr) !important;
