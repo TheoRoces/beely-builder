@@ -866,6 +866,470 @@
   }
 
   /* ══════════════════════════════════════
+     GRILLE / BENTO BUILDER
+     ══════════════════════════════════════ */
+
+  var GRID_GAPS = [
+    { value: 'none', label: 'Aucun' },
+    { value: 'xs', label: 'XS' },
+    { value: 'sm', label: 'SM' },
+    { value: 'md', label: 'MD' },
+    { value: 'lg', label: 'LG' },
+    { value: 'xl', label: 'XL' }
+  ];
+
+  var GRID_ALIGNS = [
+    { value: 'stretch', label: 'Stretch' },
+    { value: 'start', label: 'Start' },
+    { value: 'center', label: 'Center' },
+    { value: 'end', label: 'End' }
+  ];
+
+  var BENTO_SIZES = [
+    { value: '', label: 'Normal' },
+    { value: 'wide', label: 'Wide (2×1)' },
+    { value: 'tall', label: 'Tall (1×2)' },
+    { value: 'large', label: 'Large (2×2)' },
+    { value: 'full', label: 'Full width' }
+  ];
+
+  var BENTO_LAYOUTS = [
+    { value: '', label: 'Aucun' },
+    { value: 'sidebar', label: 'Sidebar (2/3 + 1/3)' },
+    { value: 'sidebar-left', label: 'Sidebar gauche (1/3 + 2/3)' },
+    { value: 'feature', label: 'Feature (1 grand + 2 empilés)' }
+  ];
+
+  var BENTO_ROW_HEIGHTS = [
+    { value: 'sm', label: 'SM (120px)' },
+    { value: 'md', label: 'MD (180px)' },
+    { value: 'lg', label: 'LG (240px)' },
+    { value: 'xl', label: 'XL (320px)' }
+  ];
+
+  var gridState = {
+    type: 'grid',
+    cols: 3,
+    gap: 'md',
+    align: 'stretch',
+    itemCount: 3,
+    selectedItem: -1,
+    spans: {},
+    layout: '',
+    rowHeight: 'md',
+    bentoSizes: ['', '', '', '', '', '', '', '', '', '', '', '']
+  };
+
+  function getGridOutput() {
+    if (gridState.type === 'grid') {
+      var attrs = ' data-cols="' + gridState.cols + '"';
+      if (gridState.gap !== 'md') attrs += ' data-gap="' + gridState.gap + '"';
+      if (gridState.align !== 'stretch') attrs += ' data-align="' + gridState.align + '"';
+      var lines = ['<div class="grid"' + attrs + '>'];
+      for (var i = 0; i < gridState.itemCount; i++) {
+        var itemAttrs = '';
+        var sp = gridState.spans[i];
+        if (sp) {
+          if (sp.col) itemAttrs += ' data-col-span="' + sp.col + '"';
+          if (sp.row) itemAttrs += ' data-row-span="' + sp.row + '"';
+        }
+        lines.push('  <div' + itemAttrs + '>Contenu ' + (i + 1) + '</div>');
+      }
+      lines.push('</div>');
+      return lines.join('\n');
+    } else {
+      var attrs = '';
+      if (gridState.gap !== 'md') attrs += ' data-gap="' + gridState.gap + '"';
+      if (gridState.rowHeight !== 'md') attrs += ' data-row-height="' + gridState.rowHeight + '"';
+      if (gridState.layout) attrs += ' data-layout="' + gridState.layout + '"';
+      var lines = ['<div class="bento"' + attrs + '>'];
+      for (var i = 0; i < gridState.itemCount; i++) {
+        var sizeAttr = gridState.bentoSizes[i] ? ' data-size="' + gridState.bentoSizes[i] + '"' : '';
+        lines.push('  <div class="bento__item"' + sizeAttr + '>Contenu ' + (i + 1) + '</div>');
+      }
+      lines.push('</div>');
+      return lines.join('\n');
+    }
+  }
+
+  function renderGrid() {
+    var contentEl = document.getElementById('libGridContent');
+    if (!contentEl) return;
+
+    var html = '';
+    html += '<div class="bld-grid">';
+
+    // ── Type toggle ──
+    html += '<div class="bld-grid__group">';
+    html += '<div class="bld-grid__type-toggle">';
+    html += '<button class="bld-grid__type' + (gridState.type === 'grid' ? ' bld-grid__type--active' : '') + '" data-grid-type="grid">Grille flexible</button>';
+    html += '<button class="bld-grid__type' + (gridState.type === 'bento' ? ' bld-grid__type--active' : '') + '" data-grid-type="bento">Bento</button>';
+    html += '</div></div>';
+
+    if (gridState.type === 'grid') {
+      // ── Colonnes ──
+      html += '<div class="bld-grid__group"><label class="bld-field__label">Colonnes</label>';
+      html += '<div class="bld-grid__cols-grid">';
+      for (var c = 1; c <= 6; c++) {
+        var active = gridState.cols === c ? ' bld-grid__col--active' : '';
+        html += '<button class="bld-grid__col' + active + '" data-grid-cols="' + c + '">' + c + '</button>';
+      }
+      html += '</div></div>';
+
+      // ── Gap ──
+      html += '<div class="bld-grid__group"><label class="bld-field__label">Espacement</label>';
+      html += '<div class="bld-anim__options">';
+      GRID_GAPS.forEach(function (g) {
+        var active = gridState.gap === g.value ? ' bld-anim__opt--active' : '';
+        html += '<button class="bld-anim__opt' + active + '" data-grid-gap="' + g.value + '">' + g.label + '</button>';
+      });
+      html += '</div></div>';
+
+      // ── Alignement ──
+      html += '<div class="bld-grid__group"><label class="bld-field__label">Alignement vertical</label>';
+      html += '<div class="bld-anim__options">';
+      GRID_ALIGNS.forEach(function (a) {
+        var active = gridState.align === a.value ? ' bld-anim__opt--active' : '';
+        html += '<button class="bld-anim__opt' + active + '" data-grid-align="' + a.value + '">' + a.label + '</button>';
+      });
+      html += '</div></div>';
+
+      // ── Nombre d'items ──
+      html += '<div class="bld-grid__group"><label class="bld-field__label">Nombre d\'items</label>';
+      html += '<div class="bld-anim__slider-wrap">';
+      html += '<input type="range" class="bld-anim__slider" id="gridItemSlider" min="1" max="12" step="1" value="' + gridState.itemCount + '">';
+      html += '<span class="bld-anim__slider-value" id="gridItemValue">' + gridState.itemCount + '</span>';
+      html += '</div></div>';
+
+    } else {
+      // ── Bento : Gap ──
+      html += '<div class="bld-grid__group"><label class="bld-field__label">Espacement</label>';
+      html += '<div class="bld-anim__options">';
+      GRID_GAPS.forEach(function (g) {
+        var active = gridState.gap === g.value ? ' bld-anim__opt--active' : '';
+        html += '<button class="bld-anim__opt' + active + '" data-grid-gap="' + g.value + '">' + g.label + '</button>';
+      });
+      html += '</div></div>';
+
+      // ── Bento : Hauteur de rangée ──
+      html += '<div class="bld-grid__group"><label class="bld-field__label">Hauteur de rangée</label>';
+      html += '<div class="bld-anim__options">';
+      BENTO_ROW_HEIGHTS.forEach(function (h) {
+        var active = gridState.rowHeight === h.value ? ' bld-anim__opt--active' : '';
+        html += '<button class="bld-anim__opt' + active + '" data-grid-rowheight="' + h.value + '">' + h.label + '</button>';
+      });
+      html += '</div></div>';
+
+      // ── Bento : Layout prédéfini ──
+      html += '<div class="bld-grid__group"><label class="bld-field__label">Layout prédéfini</label>';
+      html += '<div class="bld-anim__options">';
+      BENTO_LAYOUTS.forEach(function (l) {
+        var active = gridState.layout === l.value ? ' bld-anim__opt--active' : '';
+        html += '<button class="bld-anim__opt' + active + '" data-grid-layout="' + l.value + '">' + l.label + '</button>';
+      });
+      html += '</div></div>';
+
+      // ── Nombre d'items ──
+      html += '<div class="bld-grid__group"><label class="bld-field__label">Nombre d\'items</label>';
+      html += '<div class="bld-anim__slider-wrap">';
+      html += '<input type="range" class="bld-anim__slider" id="gridItemSlider" min="1" max="12" step="1" value="' + gridState.itemCount + '">';
+      html += '<span class="bld-anim__slider-value" id="gridItemValue">' + gridState.itemCount + '</span>';
+      html += '</div></div>';
+    }
+
+    // ── Preview ──
+    html += '<div class="bld-grid__group"><label class="bld-field__label">Aperçu <span style="font-weight:normal;color:var(--color-text-light)">(cliquez sur un item pour le configurer)</span></label>';
+    html += '<div class="bld-grid__preview-wrap">';
+    html += '<div id="gridPreview" class="bld-grid__preview"></div>';
+    html += '</div></div>';
+
+    // ── Item config (affiché quand un item est sélectionné) ──
+    html += '<div class="bld-grid__item-config" id="gridItemConfig" style="display:none;">';
+    html += '<div class="bld-grid__item-config-header">';
+    html += '<label class="bld-field__label">Configuration de l\'item <span id="gridItemConfigIndex"></span></label>';
+    html += '<button class="bld-btn bld-btn--sm" id="gridItemDeselect">Désélectionner</button>';
+    html += '</div>';
+
+    if (gridState.type === 'grid') {
+      html += '<div class="bld-grid__item-config-row">';
+      html += '<label class="bld-field__label">Col span</label>';
+      html += '<div class="bld-anim__options">';
+      ['', '2', '3', '4', '5', '6', 'full'].forEach(function (v) {
+        var label = v === '' ? 'Auto' : v === 'full' ? 'Full' : v;
+        html += '<button class="bld-anim__opt" data-grid-colspan="' + v + '">' + label + '</button>';
+      });
+      html += '</div></div>';
+      html += '<div class="bld-grid__item-config-row">';
+      html += '<label class="bld-field__label">Row span</label>';
+      html += '<div class="bld-anim__options">';
+      ['', '2', '3', '4'].forEach(function (v) {
+        var label = v === '' ? 'Auto' : v;
+        html += '<button class="bld-anim__opt" data-grid-rowspan="' + v + '">' + label + '</button>';
+      });
+      html += '</div></div>';
+    } else {
+      html += '<div class="bld-grid__item-config-row">';
+      html += '<label class="bld-field__label">Taille</label>';
+      html += '<div class="bld-anim__options">';
+      BENTO_SIZES.forEach(function (s) {
+        html += '<button class="bld-anim__opt" data-grid-bentosize="' + s.value + '">' + s.label + '</button>';
+      });
+      html += '</div></div>';
+    }
+    html += '</div>';
+
+    // ── Output ──
+    html += '<div class="bld-grid__group"><label class="bld-field__label">Code à copier</label>';
+    html += '<div class="bld-anim__output">';
+    html += '<code id="gridOutput" style="white-space:pre;"></code>';
+    html += '<button class="bld-btn bld-btn--primary bld-btn--sm" id="gridCopyBtn">Copier</button>';
+    html += '</div></div>';
+
+    html += '</div>';
+    contentEl.innerHTML = html;
+
+    // ── Update preview + output ──
+    updateGridPreview();
+    updateGridOutputDisplay();
+
+    // ── Events ──
+
+    // Type toggle
+    contentEl.querySelectorAll('[data-grid-type]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        gridState.type = btn.getAttribute('data-grid-type');
+        gridState.selectedItem = -1;
+        gridState.spans = {};
+        renderGrid();
+      });
+    });
+
+    // Colonnes
+    contentEl.querySelectorAll('[data-grid-cols]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        gridState.cols = parseInt(btn.getAttribute('data-grid-cols'));
+        contentEl.querySelectorAll('[data-grid-cols]').forEach(function (b) {
+          b.classList.toggle('bld-grid__col--active', b === btn);
+        });
+        updateGridPreview();
+        updateGridOutputDisplay();
+      });
+    });
+
+    // Gap
+    contentEl.querySelectorAll('[data-grid-gap]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        gridState.gap = btn.getAttribute('data-grid-gap');
+        contentEl.querySelectorAll('[data-grid-gap]').forEach(function (b) {
+          b.classList.toggle('bld-anim__opt--active', b === btn);
+        });
+        updateGridPreview();
+        updateGridOutputDisplay();
+      });
+    });
+
+    // Align
+    contentEl.querySelectorAll('[data-grid-align]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        gridState.align = btn.getAttribute('data-grid-align');
+        contentEl.querySelectorAll('[data-grid-align]').forEach(function (b) {
+          b.classList.toggle('bld-anim__opt--active', b === btn);
+        });
+        updateGridPreview();
+        updateGridOutputDisplay();
+      });
+    });
+
+    // Row height (bento)
+    contentEl.querySelectorAll('[data-grid-rowheight]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        gridState.rowHeight = btn.getAttribute('data-grid-rowheight');
+        contentEl.querySelectorAll('[data-grid-rowheight]').forEach(function (b) {
+          b.classList.toggle('bld-anim__opt--active', b === btn);
+        });
+        updateGridPreview();
+        updateGridOutputDisplay();
+      });
+    });
+
+    // Layout (bento)
+    contentEl.querySelectorAll('[data-grid-layout]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        gridState.layout = btn.getAttribute('data-grid-layout');
+        contentEl.querySelectorAll('[data-grid-layout]').forEach(function (b) {
+          b.classList.toggle('bld-anim__opt--active', b === btn);
+        });
+        updateGridPreview();
+        updateGridOutputDisplay();
+      });
+    });
+
+    // Item count slider
+    var itemSlider = document.getElementById('gridItemSlider');
+    if (itemSlider) {
+      itemSlider.addEventListener('input', function () {
+        gridState.itemCount = parseInt(itemSlider.value);
+        var label = document.getElementById('gridItemValue');
+        if (label) label.textContent = gridState.itemCount;
+        gridState.selectedItem = -1;
+        updateGridPreview();
+        updateGridOutputDisplay();
+        hideItemConfig();
+      });
+    }
+
+    // Copy
+    var copyBtn = document.getElementById('gridCopyBtn');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', function () {
+        var output = document.getElementById('gridOutput');
+        if (output) copyToClipboard(output.textContent);
+      });
+    }
+
+    // Deselect item
+    var deselectBtn = document.getElementById('gridItemDeselect');
+    if (deselectBtn) {
+      deselectBtn.addEventListener('click', function () {
+        gridState.selectedItem = -1;
+        hideItemConfig();
+        updateGridPreview();
+      });
+    }
+
+    // Col span buttons
+    contentEl.querySelectorAll('[data-grid-colspan]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (gridState.selectedItem < 0) return;
+        var val = btn.getAttribute('data-grid-colspan');
+        if (!gridState.spans[gridState.selectedItem]) gridState.spans[gridState.selectedItem] = {};
+        gridState.spans[gridState.selectedItem].col = val || undefined;
+        if (!gridState.spans[gridState.selectedItem].col && !gridState.spans[gridState.selectedItem].row) {
+          delete gridState.spans[gridState.selectedItem];
+        }
+        contentEl.querySelectorAll('[data-grid-colspan]').forEach(function (b) {
+          b.classList.toggle('bld-anim__opt--active', b === btn);
+        });
+        updateGridPreview();
+        updateGridOutputDisplay();
+      });
+    });
+
+    // Row span buttons
+    contentEl.querySelectorAll('[data-grid-rowspan]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (gridState.selectedItem < 0) return;
+        var val = btn.getAttribute('data-grid-rowspan');
+        if (!gridState.spans[gridState.selectedItem]) gridState.spans[gridState.selectedItem] = {};
+        gridState.spans[gridState.selectedItem].row = val || undefined;
+        if (!gridState.spans[gridState.selectedItem].col && !gridState.spans[gridState.selectedItem].row) {
+          delete gridState.spans[gridState.selectedItem];
+        }
+        contentEl.querySelectorAll('[data-grid-rowspan]').forEach(function (b) {
+          b.classList.toggle('bld-anim__opt--active', b === btn);
+        });
+        updateGridPreview();
+        updateGridOutputDisplay();
+      });
+    });
+
+    // Bento size buttons
+    contentEl.querySelectorAll('[data-grid-bentosize]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (gridState.selectedItem < 0) return;
+        gridState.bentoSizes[gridState.selectedItem] = btn.getAttribute('data-grid-bentosize');
+        contentEl.querySelectorAll('[data-grid-bentosize]').forEach(function (b) {
+          b.classList.toggle('bld-anim__opt--active', b === btn);
+        });
+        updateGridPreview();
+        updateGridOutputDisplay();
+      });
+    });
+  }
+
+  function updateGridPreview() {
+    var previewEl = document.getElementById('gridPreview');
+    if (!previewEl) return;
+
+    var html = '';
+    if (gridState.type === 'grid') {
+      var attrs = ' data-cols="' + gridState.cols + '"';
+      if (gridState.gap !== 'md') attrs += ' data-gap="' + gridState.gap + '"';
+      if (gridState.align !== 'stretch') attrs += ' data-align="' + gridState.align + '"';
+      html += '<div class="grid"' + attrs + '>';
+      for (var i = 0; i < gridState.itemCount; i++) {
+        var itemAttrs = '';
+        var sp = gridState.spans[i];
+        if (sp) {
+          if (sp.col) itemAttrs += ' data-col-span="' + sp.col + '"';
+          if (sp.row) itemAttrs += ' data-row-span="' + sp.row + '"';
+        }
+        var selected = gridState.selectedItem === i ? ' bld-grid__preview-item--selected' : '';
+        html += '<div class="bld-grid__preview-item' + selected + '"' + itemAttrs + ' data-grid-item="' + i + '">' + (i + 1) + '</div>';
+      }
+      html += '</div>';
+    } else {
+      var attrs = '';
+      if (gridState.gap !== 'md') attrs += ' data-gap="' + gridState.gap + '"';
+      if (gridState.rowHeight !== 'md') attrs += ' data-row-height="' + gridState.rowHeight + '"';
+      if (gridState.layout) attrs += ' data-layout="' + gridState.layout + '"';
+      html += '<div class="bento"' + attrs + '>';
+      for (var i = 0; i < gridState.itemCount; i++) {
+        var sizeAttr = gridState.bentoSizes[i] ? ' data-size="' + gridState.bentoSizes[i] + '"' : '';
+        var selected = gridState.selectedItem === i ? ' bld-grid__preview-item--selected' : '';
+        html += '<div class="bento__item bld-grid__preview-item' + selected + '"' + sizeAttr + ' data-grid-item="' + i + '">' + (i + 1) + '</div>';
+      }
+      html += '</div>';
+    }
+
+    previewEl.innerHTML = html;
+
+    // Bind click on preview items
+    previewEl.querySelectorAll('[data-grid-item]').forEach(function (item) {
+      item.addEventListener('click', function () {
+        var idx = parseInt(item.getAttribute('data-grid-item'));
+        gridState.selectedItem = idx;
+        showItemConfig(idx);
+        updateGridPreview();
+      });
+    });
+  }
+
+  function updateGridOutputDisplay() {
+    var output = document.getElementById('gridOutput');
+    if (output) output.textContent = getGridOutput();
+  }
+
+  function showItemConfig(idx) {
+    var configEl = document.getElementById('gridItemConfig');
+    var indexEl = document.getElementById('gridItemConfigIndex');
+    if (!configEl) return;
+    configEl.style.display = '';
+    if (indexEl) indexEl.textContent = '#' + (idx + 1);
+
+    // Highlight current span/size
+    if (gridState.type === 'grid') {
+      var sp = gridState.spans[idx] || {};
+      document.querySelectorAll('[data-grid-colspan]').forEach(function (b) {
+        b.classList.toggle('bld-anim__opt--active', b.getAttribute('data-grid-colspan') === (sp.col || ''));
+      });
+      document.querySelectorAll('[data-grid-rowspan]').forEach(function (b) {
+        b.classList.toggle('bld-anim__opt--active', b.getAttribute('data-grid-rowspan') === (sp.row || ''));
+      });
+    } else {
+      var size = gridState.bentoSizes[idx] || '';
+      document.querySelectorAll('[data-grid-bentosize]').forEach(function (b) {
+        b.classList.toggle('bld-anim__opt--active', b.getAttribute('data-grid-bentosize') === size);
+      });
+    }
+  }
+
+  function hideItemConfig() {
+    var configEl = document.getElementById('gridItemConfig');
+    if (configEl) configEl.style.display = 'none';
+  }
+
+  /* ══════════════════════════════════════
      PUBLIC API
      ══════════════════════════════════════ */
 
@@ -877,6 +1341,7 @@
         case 'lib-components': renderComponents(); break;
         case 'lib-elements': renderElements(); break;
         case 'lib-animations': renderAnimations(); break;
+        case 'lib-grid': renderGrid(); break;
         case 'lib-media': renderMedia(); break;
       }
     }

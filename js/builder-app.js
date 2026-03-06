@@ -108,7 +108,7 @@
 
   // Lire le hash au chargement — ne pas aller directement sur l'éditeur
   var initialHash = window.location.hash.replace('#', '') || 'dashboard';
-  var validPanels = ['dashboard', 'pages', 'configurator', 'lib-wireframes', 'lib-icons', 'lib-components', 'lib-elements', 'lib-animations', 'lib-media'];
+  var validPanels = ['dashboard', 'pages', 'configurator', 'lib-wireframes', 'lib-icons', 'lib-components', 'lib-elements', 'lib-animations', 'lib-grid', 'lib-media'];
   if (validPanels.indexOf(initialHash) !== -1) {
     doSwitchPanel(initialHash, false);
   } else {
