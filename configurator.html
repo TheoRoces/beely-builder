@@ -1,0 +1,1302 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Configurateur — Site System</title>
+<script src="/core/js/darkmode.js"></script>
+<link rel="stylesheet" href="/core/css/tokens.css">
+<link rel="stylesheet" href="/core/css/base.css">
+<link rel="stylesheet" href="/core/css/elements.css">
+<style>
+/* ========== CONFIGURATOR LAYOUT ========== */
+
+html { scroll-padding-top: 5rem; }
+
+.cfg-layout {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 0;
+  min-height: calc(100vh - 57px);
+}
+
+/* ========== SIDEBAR ========== */
+
+.cfg-sidebar {
+  padding: var(--space-6) 0;
+  border-right: 1px solid var(--color-border);
+  position: sticky;
+  top: 57px;
+  height: calc(100vh - 57px);
+  overflow-y: auto;
+  padding-right: var(--space-4);
+}
+
+.cfg-sidebar__title {
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-text-light);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.cfg-sidebar a {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-light);
+  border-radius: var(--radius-md);
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+  margin-bottom: 4px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.cfg-sidebar a:hover {
+  background: var(--color-bg-alt);
+  color: var(--color-text);
+}
+
+.cfg-sidebar a.active {
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
+  font-weight: var(--font-weight-medium);
+}
+
+/* ========== CONTENT ========== */
+
+.cfg-content {
+  padding: var(--space-8) var(--space-10);
+  max-width: 860px;
+  min-width: 0;
+}
+
+.cfg-content h1 {
+  font-size: var(--text-4xl);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--space-2);
+  letter-spacing: -0.02em;
+}
+
+.cfg-content > .cfg-subtitle {
+  font-size: var(--text-lg);
+  color: var(--color-text-light);
+  margin-bottom: var(--space-8);
+  line-height: 1.6;
+}
+
+.cfg-content h2 {
+  font-size: var(--text-xl);
+  font-weight: var(--font-weight-bold);
+  margin-top: var(--space-10);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+  letter-spacing: -0.01em;
+}
+
+.cfg-content h2:first-of-type {
+  margin-top: 0;
+}
+
+.cfg-content h3 {
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+  margin-top: var(--space-6);
+  margin-bottom: var(--space-3);
+}
+
+/* ========== PANELS ========== */
+
+.cfg-panel { display: none; }
+.cfg-panel--active { display: block; }
+
+/* ========== FORM FIELDS ========== */
+
+.cfg-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.cfg-fields--single {
+  grid-template-columns: 1fr;
+}
+
+.cfg-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.cfg-field--full {
+  grid-column: 1 / -1;
+}
+
+.cfg-field label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.cfg-field label small {
+  font-weight: var(--font-weight-normal);
+  color: var(--color-text-light);
+}
+
+.cfg-field input,
+.cfg-field textarea {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  outline: none;
+  width: 100%;
+}
+
+.cfg-field input:focus,
+.cfg-field textarea:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--primary-t-5);
+}
+
+.cfg-field textarea {
+  resize: vertical;
+  min-height: 56px;
+}
+
+.cfg-field input[type="number"] {
+  max-width: 160px;
+}
+
+/* ========== CODE PREVIEW (same as docs) ========== */
+
+.cfg-preview {
+  position: relative;
+  background: var(--code-bg);
+  color: var(--code-text);
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  overflow-x: auto;
+  margin-bottom: var(--space-6);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  border: 1px solid var(--code-border);
+  font-family: var(--font-mono);
+  white-space: pre;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+/* Copy button — identical to docs */
+.cfg-copy-btn {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  font-size: 11px;
+  font-family: var(--font-base);
+  color: var(--code-btn);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+  opacity: 0;
+  z-index: 5;
+}
+
+.cfg-preview:hover .cfg-copy-btn {
+  opacity: 1;
+}
+
+.cfg-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--code-btn-hover);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.cfg-copy-btn--success {
+  color: var(--color-success) !important;
+  border-color: var(--color-success) !important;
+}
+
+/* ========== ACTION BAR ========== */
+
+.cfg-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.cfg-actions .btn {
+  font-size: var(--text-sm);
+  padding: var(--space-2) var(--space-5);
+}
+
+.cfg-status {
+  font-size: var(--text-xs);
+  color: var(--color-text-light);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.cfg-status__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-border);
+  flex-shrink: 0;
+}
+
+.cfg-status__dot--connected {
+  background: var(--color-success);
+}
+
+/* ========== TOAST ========== */
+
+.cfg-toast {
+  position: fixed;
+  bottom: var(--space-6);
+  right: var(--space-6);
+  background: var(--color-text);
+  color: var(--color-bg);
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(100px);
+  opacity: 0;
+  transition: all var(--transition-base);
+  z-index: 999;
+}
+
+.cfg-toast--visible {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* ========== RESPONSIVE ========== */
+
+@media (max-width: 767px) {
+  .cfg-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .cfg-sidebar {
+    position: static;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
+    padding: var(--space-4) 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    overflow-x: auto;
+  }
+
+  .cfg-sidebar__title { display: none; }
+
+  .cfg-sidebar a {
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--text-xs);
+    margin-bottom: 0;
+  }
+
+  .cfg-content {
+    padding: var(--space-6) 0;
+  }
+
+  .cfg-content h1 {
+    font-size: var(--text-2xl);
+  }
+
+  .cfg-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .cfg-copy-btn {
+    opacity: 1;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- ========== HEADER (hidden in embed mode) ========== -->
+<header class="header" id="cfgHeader" style="position: sticky; top: 0; z-index: 100;">
+  <div class="container header__inner">
+    <a href="/builder/configurator.html" class="header__logo">
+      <span class="header__logo-text">SiteSystem</span>
+    </a>
+    <nav class="header__nav"></nav>
+    <div class="header__actions">
+      <button class="header__theme-toggle" data-theme-toggle aria-label="Basculer le theme">
+        <svg class="header__theme-icon header__theme-icon--sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        <svg class="header__theme-icon header__theme-icon--moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+<script>
+// Mode embed : masquer le header et adapter le layout quand intégré dans le builder
+(function() {
+  if (window.location.search.indexOf('embed=1') !== -1) {
+    document.getElementById('cfgHeader').style.display = 'none';
+    document.documentElement.style.setProperty('--cfg-embed', '1');
+    // Adapter les styles pour l'embed
+    var s = document.createElement('style');
+    s.textContent = '.cfg-layout { min-height: 100vh; } .cfg-sidebar { top: 0; height: 100vh; }';
+    document.head.appendChild(s);
+  }
+})();
+</script>
+
+<div class="container">
+  <div class="cfg-layout">
+
+    <!-- ========== SIDEBAR ========== -->
+    <nav class="cfg-sidebar">
+      <div class="cfg-sidebar__title">Configurateur</div>
+      <a class="active" data-tab="site">Site</a>
+      <a data-tab="cookies">Cookies &amp; Analytics</a>
+      <a data-tab="blog">Blog</a>
+      <a data-tab="legal">Mentions l&eacute;gales</a>
+      <a data-tab="env">Serveur (.env)</a>
+      <a data-tab="deploy">D&eacute;ploiement</a>
+    </nav>
+
+    <!-- ========== CONTENT ========== -->
+    <main class="cfg-content">
+      <h1>Configurateur</h1>
+      <p class="cfg-subtitle">Configurez votre projet et g&eacute;n&eacute;rez les fichiers automatiquement.</p>
+
+      <!-- ACTIONS -->
+      <div class="cfg-actions">
+        <button class="btn btn--primary" id="btnSave">Enregistrer</button>
+        <button class="btn btn--secondary" id="btnDownload">T&eacute;l&eacute;charger</button>
+        <button class="btn btn--secondary" id="btnImport">Importer...</button>
+        <div class="cfg-status" id="fsStatus">
+          <span class="cfg-status__dot" id="fsDot"></span>
+          <span id="fsLabel">Non connect&eacute;</span>
+        </div>
+      </div>
+
+      <!-- ====== TAB: SITE ====== -->
+      <div class="cfg-panel cfg-panel--active" data-panel="site">
+        <h2>Identit&eacute; du site</h2>
+        <div class="cfg-fields">
+          <div class="cfg-field">
+            <label>Nom du site</label>
+            <input type="text" data-key="site.name" placeholder="Mon Site">
+          </div>
+          <div class="cfg-field">
+            <label>Favicon</label>
+            <input type="text" data-key="site.favicon" placeholder="/favicon.ico">
+          </div>
+        </div>
+
+        <h2>Aper&ccedil;u — config-site.js</h2>
+        <div class="cfg-preview" id="preview-site"><button class="cfg-copy-btn">Copier</button></div>
+      </div>
+
+      <!-- ====== TAB: COOKIES ====== -->
+      <div class="cfg-panel" data-panel="cookies">
+        <h2>Plateformes analytics</h2>
+        <div class="cfg-fields">
+          <div class="cfg-field">
+            <label>Google Analytics 4</label>
+            <input type="text" data-key="cookies.ga4" placeholder="G-XXXXXXXXXX">
+          </div>
+          <div class="cfg-field">
+            <label>Google Tag Manager</label>
+            <input type="text" data-key="cookies.gtm" placeholder="GTM-XXXXXXX">
+          </div>
+          <div class="cfg-field">
+            <label>Microsoft Clarity</label>
+            <input type="text" data-key="cookies.clarity" placeholder="xxxxxxxxxx">
+          </div>
+          <div class="cfg-field">
+            <label>Facebook Pixel</label>
+            <input type="text" data-key="cookies.fbPixel" placeholder="123456789012345">
+          </div>
+          <div class="cfg-field">
+            <label>Hotjar</label>
+            <input type="text" data-key="cookies.hotjar" placeholder="1234567">
+          </div>
+          <div class="cfg-field">
+            <label>LinkedIn Insight</label>
+            <input type="text" data-key="cookies.linkedin" placeholder="123456">
+          </div>
+          <div class="cfg-field">
+            <label>TikTok Pixel</label>
+            <input type="text" data-key="cookies.tiktok" placeholder="XXXXXXXXXX">
+          </div>
+        </div>
+
+        <h2>Banni&egrave;re de consentement</h2>
+        <div class="cfg-fields">
+          <div class="cfg-field">
+            <label>Titre</label>
+            <input type="text" data-key="cookies.banner.title" placeholder="Ce site utilise des cookies">
+          </div>
+          <div class="cfg-field cfg-field--full">
+            <label>Texte</label>
+            <textarea data-key="cookies.banner.text" placeholder="Nous utilisons des cookies pour analyser le trafic et am&eacute;liorer votre exp&eacute;rience."></textarea>
+          </div>
+          <div class="cfg-field">
+            <label>Bouton accepter</label>
+            <input type="text" data-key="cookies.banner.acceptText" placeholder="Tout accepter">
+          </div>
+          <div class="cfg-field">
+            <label>Bouton refuser</label>
+            <input type="text" data-key="cookies.banner.rejectText" placeholder="Tout refuser">
+          </div>
+          <div class="cfg-field">
+            <label>Bouton personnaliser</label>
+            <input type="text" data-key="cookies.banner.settingsText" placeholder="Personnaliser">
+          </div>
+          <div class="cfg-field">
+            <label>Bouton sauvegarder</label>
+            <input type="text" data-key="cookies.banner.saveText" placeholder="Enregistrer mes choix">
+          </div>
+          <div class="cfg-field">
+            <label>Nom du cookie</label>
+            <input type="text" data-key="cookies.banner.cookieName" placeholder="cookie_consent">
+          </div>
+          <div class="cfg-field">
+            <label>Dur&eacute;e <small>(jours)</small></label>
+            <input type="number" data-key="cookies.banner.cookieDuration" placeholder="395">
+          </div>
+          <div class="cfg-field">
+            <label>Version consentement</label>
+            <input type="text" data-key="cookies.banner.consentVersion" placeholder="1.0">
+          </div>
+          <div class="cfg-field">
+            <label>URL confidentialit&eacute;</label>
+            <input type="text" data-key="cookies.banner.privacyUrl" placeholder="/confidentialite.html">
+          </div>
+          <div class="cfg-field">
+            <label>Texte lien confidentialit&eacute;</label>
+            <input type="text" data-key="cookies.banner.privacyText" placeholder="Politique de confidentialit&eacute;">
+          </div>
+          <div class="cfg-field">
+            <label>Endpoint consentement</label>
+            <input type="text" data-key="cookies.consentEndpoint" placeholder="/api/consent.php">
+          </div>
+        </div>
+
+        <h2>Aper&ccedil;u — config-site.js</h2>
+        <div class="cfg-preview" id="preview-cookies"><button class="cfg-copy-btn">Copier</button></div>
+      </div>
+
+      <!-- ====== TAB: BLOG ====== -->
+      <div class="cfg-panel" data-panel="blog">
+        <h2>Connexion Baserow</h2>
+        <div class="cfg-fields">
+          <div class="cfg-field">
+            <label>URL Baserow</label>
+            <input type="text" data-key="blog.baserow.url" placeholder="https://api.baserow.io">
+          </div>
+          <div class="cfg-field">
+            <label>Token <small>(dev local uniquement)</small></label>
+            <input type="text" data-key="blog.baserow.token" placeholder="Laisser vide en prod">
+          </div>
+          <div class="cfg-field">
+            <label>Table ID</label>
+            <input type="text" data-key="blog.baserow.tableId" placeholder="866150">
+          </div>
+          <div class="cfg-field">
+            <label>URL proxy</label>
+            <input type="text" data-key="blog.proxyUrl" placeholder="/api/baserow.php">
+          </div>
+        </div>
+
+        <h2>Options d'affichage</h2>
+        <div class="cfg-fields">
+          <div class="cfg-field">
+            <label>Articles par page</label>
+            <input type="number" data-key="blog.perPage" placeholder="12">
+          </div>
+          <div class="cfg-field">
+            <label>Format date</label>
+            <input type="text" data-key="blog.dateFormat" placeholder="fr-FR">
+          </div>
+          <div class="cfg-field">
+            <label>Image par d&eacute;faut</label>
+            <input type="text" data-key="blog.defaultImage" placeholder="">
+          </div>
+          <div class="cfg-field">
+            <label>Page article</label>
+            <input type="text" data-key="blog.articlePage" placeholder="blog/article">
+          </div>
+          <div class="cfg-field">
+            <label>Page listing</label>
+            <input type="text" data-key="blog.blogPage" placeholder="blog">
+          </div>
+        </div>
+
+        <h2>Aper&ccedil;u — config-site.js</h2>
+        <div class="cfg-preview" id="preview-blog"><button class="cfg-copy-btn">Copier</button></div>
+      </div>
+
+      <!-- ====== TAB: LEGAL ====== -->
+      <div class="cfg-panel" data-panel="legal">
+        <h2>&Eacute;diteur du site</h2>
+        <div class="cfg-fields">
+          <div class="cfg-field">
+            <label>Entreprise</label>
+            <input type="text" data-key="legal.company" placeholder="Ma Soci&eacute;t&eacute; SAS">
+          </div>
+          <div class="cfg-field">
+            <label>Forme juridique</label>
+            <input type="text" data-key="legal.legalForm" placeholder="SAS">
+          </div>
+          <div class="cfg-field">
+            <label>SIRET</label>
+            <input type="text" data-key="legal.siret" placeholder="123 456 789 00000">
+          </div>
+          <div class="cfg-field">
+            <label>Immatriculation</label>
+            <input type="text" data-key="legal.registration" placeholder="RCS Paris">
+          </div>
+          <div class="cfg-field">
+            <label>Responsable</label>
+            <input type="text" data-key="legal.representative" placeholder="Jean Dupont">
+          </div>
+          <div class="cfg-field cfg-field--full">
+            <label>Adresse</label>
+            <input type="text" data-key="legal.address" placeholder="123 rue Exemple, 75000 Paris">
+          </div>
+          <div class="cfg-field">
+            <label>T&eacute;l&eacute;phone</label>
+            <input type="text" data-key="legal.phone" placeholder="+33 1 23 45 67 89">
+          </div>
+          <div class="cfg-field">
+            <label>Email</label>
+            <input type="text" data-key="legal.email" placeholder="contact@monsite.fr">
+          </div>
+          <div class="cfg-field">
+            <label>Site web</label>
+            <input type="text" data-key="legal.website" placeholder="https://monsite.fr">
+          </div>
+        </div>
+
+        <h2>H&eacute;bergeur</h2>
+        <div class="cfg-fields">
+          <div class="cfg-field">
+            <label>Nom</label>
+            <input type="text" data-key="legal.hosting.name" placeholder="Hostinger">
+          </div>
+          <div class="cfg-field">
+            <label>Adresse</label>
+            <input type="text" data-key="legal.hosting.address" placeholder="2 rue Kellermann, 59100 Roubaix">
+          </div>
+          <div class="cfg-field">
+            <label>Site web</label>
+            <input type="text" data-key="legal.hosting.url" placeholder="https://www.ovh.com">
+          </div>
+          <div class="cfg-field">
+            <label>Contact</label>
+            <input type="text" data-key="legal.hosting.contact" placeholder="https://www.ovh.com/fr/support/">
+          </div>
+        </div>
+
+        <h2>D&eacute;veloppeur <small style="font-weight: normal; color: var(--color-text-light);">(optionnel)</small></h2>
+        <div class="cfg-fields">
+          <div class="cfg-field">
+            <label>Nom / Agence</label>
+            <input type="text" data-key="legal.developer.name" placeholder="Beely Studio">
+          </div>
+          <div class="cfg-field">
+            <label>Site web</label>
+            <input type="text" data-key="legal.developer.url" placeholder="https://beely.studio">
+          </div>
+          <div class="cfg-field">
+            <label>Adresse</label>
+            <input type="text" data-key="legal.developer.address" placeholder="">
+          </div>
+        </div>
+
+        <h2>Aper&ccedil;u — config-site.js</h2>
+        <div class="cfg-preview" id="preview-legal"><button class="cfg-copy-btn">Copier</button></div>
+      </div>
+
+      <!-- ====== TAB: ENV ====== -->
+      <div class="cfg-panel" data-panel="env">
+        <h2>Baserow (Blog CMS)</h2>
+        <div class="cfg-fields">
+          <div class="cfg-field">
+            <label>Token Baserow</label>
+            <input type="text" data-key="env.BASEROW_TOKEN" placeholder="">
+          </div>
+          <div class="cfg-field">
+            <label>URL Baserow</label>
+            <input type="text" data-key="env.BASEROW_URL" placeholder="https://api.baserow.io">
+          </div>
+        </div>
+
+        <h2>CORS</h2>
+        <div class="cfg-fields">
+          <div class="cfg-field">
+            <label>Origine autoris&eacute;e</label>
+            <input type="text" data-key="env.SITE_ORIGIN" placeholder="https://monsite.fr">
+          </div>
+        </div>
+
+        <h2>Formulaires</h2>
+        <div class="cfg-fields">
+          <div class="cfg-field">
+            <label>Webhook Make.com</label>
+            <input type="text" data-key="env.FORM_WEBHOOK_URL" placeholder="">
+          </div>
+          <div class="cfg-field">
+            <label>Email notification</label>
+            <input type="text" data-key="env.FORM_NOTIFICATION_EMAIL" placeholder="contact@monsite.fr">
+          </div>
+        </div>
+
+        <h2>Make.com API</h2>
+        <div class="cfg-fields">
+          <div class="cfg-field">
+            <label>Cl&eacute; API</label>
+            <input type="text" data-key="env.MAKE_API_KEY" placeholder="">
+          </div>
+          <div class="cfg-field">
+            <label>Zone</label>
+            <input type="text" data-key="env.MAKE_ZONE" placeholder="eu2.make.com">
+          </div>
+          <div class="cfg-field">
+            <label>Team ID</label>
+            <input type="text" data-key="env.MAKE_TEAM_ID" placeholder="">
+          </div>
+        </div>
+
+        <h2>Aper&ccedil;u — .env</h2>
+        <div class="cfg-preview" id="preview-env"><button class="cfg-copy-btn">Copier</button></div>
+      </div>
+
+      <!-- ====== TAB: DEPLOY ====== -->
+      <div class="cfg-panel" data-panel="deploy">
+        <h2>Production</h2>
+        <div class="cfg-fields">
+          <div class="cfg-field">
+            <label>URL</label>
+            <input type="text" data-key="deploy.PROD_URL" placeholder="https://monsite.fr">
+          </div>
+          <div class="cfg-field">
+            <label>Host</label>
+            <input type="text" data-key="deploy.PROD_HOST" placeholder="">
+          </div>
+          <div class="cfg-field">
+            <label>Port</label>
+            <input type="number" data-key="deploy.PROD_PORT" placeholder="65002">
+          </div>
+          <div class="cfg-field">
+            <label>User</label>
+            <input type="text" data-key="deploy.PROD_USER" placeholder="">
+          </div>
+          <div class="cfg-field cfg-field--full">
+            <label>Path</label>
+            <input type="text" data-key="deploy.PROD_PATH" placeholder="/home/user/domains/monsite.fr/public_html/">
+          </div>
+        </div>
+
+        <h2>Pr&eacute;-production</h2>
+        <div class="cfg-fields">
+          <div class="cfg-field">
+            <label>URL</label>
+            <input type="text" data-key="deploy.PREPROD_URL" placeholder="">
+          </div>
+          <div class="cfg-field">
+            <label>Host</label>
+            <input type="text" data-key="deploy.PREPROD_HOST" placeholder="">
+          </div>
+          <div class="cfg-field">
+            <label>Port</label>
+            <input type="number" data-key="deploy.PREPROD_PORT" placeholder="65002">
+          </div>
+          <div class="cfg-field">
+            <label>User</label>
+            <input type="text" data-key="deploy.PREPROD_USER" placeholder="">
+          </div>
+          <div class="cfg-field cfg-field--full">
+            <label>Path</label>
+            <input type="text" data-key="deploy.PREPROD_PATH" placeholder="">
+          </div>
+        </div>
+
+        <h2>Aper&ccedil;u — .deploy.env</h2>
+        <div class="cfg-preview" id="preview-deploy"><button class="cfg-copy-btn">Copier</button></div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="cfg-toast" id="toast"></div>
+
+<!-- HIDDEN FILE INPUT -->
+<input type="file" id="fileInput" accept=".js,.env" style="display:none">
+
+<script>
+/* ==========================================================================
+   CONFIGURATEUR — Site System
+   ========================================================================== */
+(function () {
+  'use strict';
+
+  var STORAGE_KEY = 'site-system-configurator';
+
+  /* ---------- State ---------- */
+  var state = loadState();
+
+  /* ---------- Save engine ---------- */
+  var saveTimer = null;
+
+  /* ---------- DOM ---------- */
+  var sidebarLinks = document.querySelectorAll('.cfg-sidebar a[data-tab]');
+  var panels = document.querySelectorAll('.cfg-panel');
+  var inputs = document.querySelectorAll('[data-key]');
+
+  /* ---------- Sidebar navigation ---------- */
+  sidebarLinks.forEach(function (link) {
+    link.addEventListener('click', function () {
+      var target = link.getAttribute('data-tab');
+      sidebarLinks.forEach(function (l) { l.classList.remove('active'); });
+      panels.forEach(function (p) { p.classList.remove('cfg-panel--active'); });
+      link.classList.add('active');
+      document.querySelector('[data-panel="' + target + '"]').classList.add('cfg-panel--active');
+    });
+  });
+
+  /* ---------- Inputs -> State ---------- */
+  inputs.forEach(function (input) {
+    var key = input.getAttribute('data-key');
+    var val = getNestedValue(state, key);
+    if (val !== undefined && val !== '') input.value = val;
+
+    input.addEventListener('input', function () {
+      setNestedValue(state, key, input.value);
+      saveState();
+      updatePreviews();
+      scheduleAutoSave();
+    });
+  });
+
+  /* ---------- Nested key helpers ---------- */
+  function getNestedValue(obj, path) {
+    var keys = path.split('.');
+    var cur = obj;
+    for (var i = 0; i < keys.length; i++) {
+      if (cur == null) return undefined;
+      cur = cur[keys[i]];
+    }
+    return cur;
+  }
+
+  function setNestedValue(obj, path, value) {
+    var keys = path.split('.');
+    var cur = obj;
+    for (var i = 0; i < keys.length - 1; i++) {
+      if (!cur[keys[i]] || typeof cur[keys[i]] !== 'object') cur[keys[i]] = {};
+      cur = cur[keys[i]];
+    }
+    cur[keys[keys.length - 1]] = value;
+  }
+
+  /* ---------- State persistence (localStorage) ---------- */
+  function saveState() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+  }
+
+  function loadState() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return {};
+  }
+
+  /* ---------- String helper for JS output ---------- */
+  function s(val) {
+    if (val === undefined || val === null || val === '') return "''";
+    return "'" + String(val).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
+  }
+
+  function n(val, fallback) {
+    var num = parseInt(val, 10);
+    return isNaN(num) ? (fallback || 0) : num;
+  }
+
+  /* ---------- Generators ---------- */
+  function generateSiteConfig() {
+    var c = state.site || {};
+    return [
+      '/* ========================================================================== */',
+      '/*   CONFIG SITE \u2014 Configuration client unique                                */',
+      '/*   Seul fichier a modifier pour configurer le site.                          */',
+      '/* ========================================================================== */',
+      '',
+      '',
+      '/* ---------- SITE ---------- */',
+      '',
+      'window.SITE_CONFIG = {',
+      '  /* --- Identité du site --- */',
+      '  name: ' + s(c.name) + ',',
+      '  favicon: ' + s(c.favicon),
+      '};'
+    ].join('\n');
+  }
+
+  function generateCookiesConfig() {
+    var c = state.cookies || {};
+    var b = c.banner || {};
+    return [
+      '',
+      '',
+      '/* ---------- COOKIES & ANALYTICS ---------- */',
+      '',
+      'window.COOKIES_CONFIG = {',
+      '  /* --- Plateformes analytics --- */',
+      '  ga4: ' + s(c.ga4) + ',',
+      '  gtm: ' + s(c.gtm) + ',',
+      '  clarity: ' + s(c.clarity) + ',',
+      '  fbPixel: ' + s(c.fbPixel) + ',',
+      '  hotjar: ' + s(c.hotjar) + ',',
+      '  linkedin: ' + s(c.linkedin) + ',',
+      '  tiktok: ' + s(c.tiktok) + ',',
+      '',
+      '  /* --- Cat\u00e9gories de consentement --- */',
+      '  categories: {',
+      '    functional: {',
+      "      label: 'Fonctionnel',",
+      "      description: 'Propagation des param\u00e8tres UTM entre les pages (URL uniquement, aucun stockage).',",
+      '      services: [],',
+      '      required: true',
+      '    },',
+      '    analytics: {',
+      "      label: 'Analytique',",
+      "      description: 'Mesure d\\'audience et analyse du trafic.',",
+      "      services: ['ga4', 'gtm', 'clarity', 'hotjar']",
+      '    },',
+      '    marketing: {',
+      "      label: 'Marketing',",
+      "      description: 'Publicit\u00e9 cibl\u00e9e et suivi des conversions.',",
+      "      services: ['fbPixel', 'linkedin', 'tiktok']",
+      '    }',
+      '  },',
+      '',
+      '  /* --- Banni\u00e8re de consentement --- */',
+      '  banner: {',
+      '    title: ' + s(b.title || 'Ce site utilise des cookies') + ',',
+      '    text: ' + s(b.text || 'Nous utilisons des cookies pour analyser le trafic et am\u00e9liorer votre exp\u00e9rience.') + ',',
+      '    acceptText: ' + s(b.acceptText || 'Tout accepter') + ',',
+      '    rejectText: ' + s(b.rejectText || 'Tout refuser') + ',',
+      '    settingsText: ' + s(b.settingsText || 'Personnaliser') + ',',
+      '    saveText: ' + s(b.saveText || 'Enregistrer mes choix') + ',',
+      '    cookieName: ' + s(b.cookieName || 'cookie_consent') + ',',
+      '    cookieDuration: ' + n(b.cookieDuration, 395) + ',',
+      '    consentVersion: ' + s(b.consentVersion || '1.0') + ',',
+      '    privacyUrl: ' + s(b.privacyUrl || '/confidentialite.html') + ',',
+      '    privacyText: ' + s(b.privacyText || 'Politique de confidentialit\u00e9'),
+      '  },',
+      '',
+      '  consentEndpoint: ' + s(c.consentEndpoint || '/api/consent.php'),
+      '};'
+    ].join('\n');
+  }
+
+  function generateBlogConfig() {
+    var c = state.blog || {};
+    var br = c.baserow || {};
+    return [
+      '',
+      '',
+      '/* ---------- BLOG ---------- */',
+      '',
+      'window.BLOG_CONFIG = {',
+      '  baserow: {',
+      '    url: ' + s(br.url || 'https://api.baserow.io') + ',',
+      '    token: ' + s(br.token) + ',',
+      '    tableId: ' + s(br.tableId) + ',',
+      '  },',
+      '  proxyUrl: ' + s(c.proxyUrl || '/api/baserow.php') + ',',
+      '',
+      "  /* --- Options d'affichage --- */",
+      '  perPage: ' + n(c.perPage, 12) + ',',
+      '  dateFormat: ' + s(c.dateFormat || 'fr-FR') + ',',
+      '  defaultImage: ' + s(c.defaultImage) + ',',
+      '  articlePage: ' + s(c.articlePage || 'blog/article') + ',',
+      '  blogPage: ' + s(c.blogPage || 'blog') + ',',
+      '};'
+    ].join('\n');
+  }
+
+  function generateLegalConfig() {
+    var c = state.legal || {};
+    var h = c.hosting || {};
+    var d = c.developer || {};
+    return [
+      '',
+      '',
+      '/* ---------- MENTIONS LEGALES ---------- */',
+      '',
+      'window.LEGAL_CONFIG = {',
+      '  /* --- Editeur du site --- */',
+      '  company: ' + s(c.company) + ',',
+      '  legalForm: ' + s(c.legalForm) + ',',
+      '  siret: ' + s(c.siret) + ',',
+      '  registration: ' + s(c.registration) + ',',
+      '  representative: ' + s(c.representative) + ',',
+      '  address: ' + s(c.address) + ',',
+      '  phone: ' + s(c.phone) + ',',
+      '  email: ' + s(c.email) + ',',
+      '  website: ' + s(c.website) + ',',
+      '',
+      '  /* --- Hebergement --- */',
+      '  hosting: {',
+      '    name: ' + s(h.name) + ',',
+      '    address: ' + s(h.address) + ',',
+      '    url: ' + s(h.url) + ',',
+      '    contact: ' + s(h.contact),
+      '  },',
+      '',
+      '  /* --- Developpeur (optionnel, masque si name est vide) --- */',
+      '  developer: {',
+      '    name: ' + s(d.name) + ',',
+      '    url: ' + s(d.url) + ',',
+      '    address: ' + s(d.address),
+      '  }',
+      '};'
+    ].join('\n');
+  }
+
+  function generateFullConfigSiteJS() {
+    return generateSiteConfig() + generateCookiesConfig() + generateBlogConfig() + generateLegalConfig() + '\n';
+  }
+
+  function generateEnv() {
+    var c = state.env || {};
+    return [
+      '# .env \u2014 Variables d\'environnement serveur',
+      '# Ce fichier NE DOIT PAS \u00eatre commit\u00e9 (.gitignore)',
+      '',
+      '# \u2500\u2500\u2500\u2500 Baserow (Blog CMS) \u2500\u2500\u2500\u2500',
+      'BASEROW_TOKEN=' + (c.BASEROW_TOKEN || ''),
+      'BASEROW_URL=' + (c.BASEROW_URL || 'https://api.baserow.io'),
+      '',
+      '# \u2500\u2500\u2500\u2500 CORS \u2500\u2500\u2500\u2500',
+      'SITE_ORIGIN=' + (c.SITE_ORIGIN || ''),
+      '',
+      '# \u2500\u2500\u2500\u2500 Formulaires \u2500\u2500\u2500\u2500',
+      'FORM_WEBHOOK_URL=' + (c.FORM_WEBHOOK_URL || ''),
+      'FORM_NOTIFICATION_EMAIL=' + (c.FORM_NOTIFICATION_EMAIL || ''),
+      '',
+      '# \u2500\u2500\u2500\u2500 Make.com API \u2500\u2500\u2500\u2500',
+      'MAKE_API_KEY=' + (c.MAKE_API_KEY || ''),
+      'MAKE_ZONE=' + (c.MAKE_ZONE || 'eu2.make.com'),
+      'MAKE_TEAM_ID=' + (c.MAKE_TEAM_ID || ''),
+      ''
+    ].join('\n');
+  }
+
+  function generateDeploy() {
+    var c = state.deploy || {};
+    return [
+      '# .deploy.env \u2014 Configuration SSH de d\u00e9ploiement',
+      '# Ce fichier NE DOIT PAS \u00eatre commit\u00e9 (.gitignore)',
+      '',
+      '# \u2500\u2500\u2500\u2500 Production \u2500\u2500\u2500\u2500',
+      'PROD_URL=' + (c.PROD_URL || ''),
+      'PROD_HOST=' + (c.PROD_HOST || ''),
+      'PROD_PORT=' + (c.PROD_PORT || '65002'),
+      'PROD_USER=' + (c.PROD_USER || ''),
+      'PROD_PATH=' + (c.PROD_PATH || ''),
+      '',
+      '# \u2500\u2500\u2500\u2500 Pr\u00e9-production \u2500\u2500\u2500\u2500',
+      'PREPROD_URL=' + (c.PREPROD_URL || ''),
+      'PREPROD_HOST=' + (c.PREPROD_HOST || ''),
+      'PREPROD_PORT=' + (c.PREPROD_PORT || '65002'),
+      'PREPROD_USER=' + (c.PREPROD_USER || ''),
+      'PREPROD_PATH=' + (c.PREPROD_PATH || ''),
+      ''
+    ].join('\n');
+  }
+
+  /* ---------- Update all previews ---------- */
+  function updatePreviews() {
+    setPreview('preview-site', generateSiteConfig());
+    setPreview('preview-cookies', generateCookiesConfig());
+    setPreview('preview-blog', generateBlogConfig());
+    setPreview('preview-legal', generateLegalConfig());
+    setPreview('preview-env', generateEnv());
+    setPreview('preview-deploy', generateDeploy());
+  }
+
+  function setPreview(id, text) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var btn = el.querySelector('.cfg-copy-btn');
+    el.textContent = text;
+    if (btn) el.appendChild(btn);
+  }
+
+  updatePreviews();
+
+  /* ---------- Copy buttons (same behavior as docs) ---------- */
+  document.querySelectorAll('.cfg-copy-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var pre = btn.parentElement;
+      var text = pre.textContent.replace('Copier', '').replace('Copi\u00e9 !', '').trim();
+      navigator.clipboard.writeText(text).then(function () {
+        btn.textContent = 'Copi\u00e9 !';
+        btn.classList.add('cfg-copy-btn--success');
+        setTimeout(function () {
+          btn.textContent = 'Copier';
+          btn.classList.remove('cfg-copy-btn--success');
+        }, 2000);
+      }).catch(function () { btn.textContent = 'Erreur'; });
+    });
+  });
+
+  /* ==========================================================================
+     SAVE ENGINE — Ecriture directe sur disque
+     Mode 1 (cross-browser) : serveur Python (configurator-server.py)
+     Mode 2 (fallback)      : telechargement du fichier
+     ========================================================================== */
+
+  var serverAvailable = false;
+  var API_BASE = window.location.origin;
+
+  /* --- Detect if Python server is running --- */
+  async function detectServer() {
+    try {
+      var resp = await fetch(API_BASE + '/api/cfg-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file: 'config-site.js' })
+      });
+      if (resp.ok) {
+        serverAvailable = true;
+        var data = await resp.json();
+        if (data.ok && data.content) {
+          // Auto-read existing config if state is empty
+          if (Object.keys(state).length === 0) {
+            importConfigSiteJS(data.content);
+            saveState();
+            syncInputsFromState();
+            updatePreviews();
+          }
+        }
+      }
+    } catch (e) { /* server not running */ }
+    updateFsStatus();
+  }
+
+  /* --- Status indicator --- */
+  function updateFsStatus() {
+    var dot = document.getElementById('fsDot');
+    var label = document.getElementById('fsLabel');
+
+    if (serverAvailable) {
+      dot.classList.add('cfg-status__dot--connected');
+      label.textContent = 'Serveur connect\u00e9 \u2014 auto-save actif';
+    } else {
+      dot.classList.remove('cfg-status__dot--connected');
+      label.textContent = 'Lancez python3 configurator-server.py pour l\u2019auto-save';
+    }
+  }
+
+  /* --- Write a file via the Python server --- */
+  async function serverWrite(filename, content) {
+    var resp = await fetch(API_BASE + '/api/cfg-save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file: filename, content: content })
+    });
+    if (!resp.ok) {
+      var err = await resp.json().catch(function () { return { error: 'Erreur serveur' }; });
+      throw new Error(err.error || 'Erreur ' + resp.status);
+    }
+  }
+
+  /* --- Debounced auto-save: writes files 500ms after last input --- */
+  function scheduleAutoSave() {
+    if (!serverAvailable) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () { autoSaveAll(); }, 500);
+  }
+
+  async function autoSaveAll() {
+    if (!serverAvailable) return;
+    try {
+      await serverWrite('config-site.js', generateFullConfigSiteJS());
+    } catch (e) {
+      showToast('Erreur auto-save : ' + e.message);
+      serverAvailable = false;
+      updateFsStatus();
+    }
+  }
+
+  /* --- Save button: write via server or download --- */
+  document.getElementById('btnSave').addEventListener('click', async function () {
+    var tab = getActiveTab();
+
+    if (serverAvailable) {
+      try {
+        if (tab === 'env') {
+          await serverWrite('.env', generateEnv());
+          showToast('.env enregistr\u00e9');
+        } else if (tab === 'deploy') {
+          await serverWrite('.deploy.env', generateDeploy());
+          showToast('.deploy.env enregistr\u00e9');
+        } else {
+          await serverWrite('config-site.js', generateFullConfigSiteJS());
+          showToast('config-site.js enregistr\u00e9');
+        }
+      } catch (e) {
+        showToast('Erreur : ' + e.message);
+      }
+    } else {
+      // Fallback: download
+      if (tab === 'env') downloadFile('.env', generateEnv());
+      else if (tab === 'deploy') downloadFile('.deploy.env', generateDeploy());
+      else downloadFile('config-site.js', generateFullConfigSiteJS());
+    }
+  });
+
+  /* --- Download fallback --- */
+  document.getElementById('btnDownload').addEventListener('click', function () {
+    var tab = getActiveTab();
+    if (tab === 'env') downloadFile('.env', generateEnv());
+    else if (tab === 'deploy') downloadFile('.deploy.env', generateDeploy());
+    else downloadFile('config-site.js', generateFullConfigSiteJS());
+  });
+
+  function downloadFile(name, content) {
+    var blob = new Blob([content], { type: 'text/plain' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast(name + ' t\u00e9l\u00e9charg\u00e9');
+  }
+
+  /* --- Import button --- */
+  var fileInput = document.getElementById('fileInput');
+
+  document.getElementById('btnImport').addEventListener('click', function () {
+    fileInput.value = '';
+    fileInput.click();
+  });
+
+  fileInput.addEventListener('change', function () {
+    var file = fileInput.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      var text = e.target.result;
+      var name = file.name;
+      if (name === 'config-site.js' || name.endsWith('.js')) importConfigSiteJS(text);
+      else if (name.indexOf('deploy') !== -1) importEnvFile(text, 'deploy');
+      else importEnvFile(text, 'env');
+      saveState();
+      syncInputsFromState();
+      updatePreviews();
+      showToast(name + ' import\u00e9');
+    };
+    reader.readAsText(file);
+  });
+
+  /* --- Parsers --- */
+  function importConfigSiteJS(text) {
+    var siteMatch = text.match(/SITE_CONFIG\s*=\s*\{([\s\S]*?)\};/);
+    if (siteMatch) parseJSObject(siteMatch[1], 'site');
+    var cookiesMatch = text.match(/COOKIES_CONFIG\s*=\s*\{([\s\S]*?)\n\};/);
+    if (cookiesMatch) parseJSObject(cookiesMatch[1], 'cookies');
+    var blogMatch = text.match(/BLOG_CONFIG\s*=\s*\{([\s\S]*?)\n\};/);
+    if (blogMatch) parseJSObject(blogMatch[1], 'blog');
+    var legalMatch = text.match(/LEGAL_CONFIG\s*=\s*\{([\s\S]*?)\n\};/);
+    if (legalMatch) parseJSObject(legalMatch[1], 'legal');
+  }
+
+  function parseJSObject(content, prefix) {
+    var lines = content.split('\n');
+    var currentObj = '';
+    lines.forEach(function (line) {
+      line = line.trim();
+      var objStart = line.match(/^(\w+)\s*:\s*\{/);
+      if (objStart) { currentObj = objStart[1]; return; }
+      if (line === '}' || line === '},') { currentObj = ''; return; }
+      var strMatch = line.match(/^(\w+)\s*:\s*'((?:[^'\\]|\\.)*)'/);
+      if (strMatch) {
+        var key = currentObj ? prefix + '.' + currentObj + '.' + strMatch[1] : prefix + '.' + strMatch[1];
+        setNestedValue(state, key, strMatch[2].replace(/\\'/g, "'"));
+        return;
+      }
+      var numMatch = line.match(/^(\w+)\s*:\s*(\d+)/);
+      if (numMatch) {
+        var nkey = currentObj ? prefix + '.' + currentObj + '.' + numMatch[1] : prefix + '.' + numMatch[1];
+        setNestedValue(state, nkey, numMatch[2]);
+      }
+    });
+  }
+
+  function importEnvFile(text, prefix) {
+    text.split('\n').forEach(function (line) {
+      line = line.trim();
+      if (!line || line[0] === '#') return;
+      var eq = line.indexOf('=');
+      if (eq === -1) return;
+      setNestedValue(state, prefix + '.' + line.substring(0, eq).trim(), line.substring(eq + 1).trim());
+    });
+  }
+
+  function syncInputsFromState() {
+    inputs.forEach(function (input) {
+      var val = getNestedValue(state, input.getAttribute('data-key'));
+      input.value = (val != null) ? val : '';
+    });
+  }
+
+  /* ---------- Helpers ---------- */
+  function getActiveTab() {
+    var active = document.querySelector('.cfg-sidebar a.active');
+    return active ? active.getAttribute('data-tab') : 'site';
+  }
+
+  /* ---------- Toast ---------- */
+  var toastTimer;
+  function showToast(msg) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('cfg-toast--visible');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove('cfg-toast--visible'); }, 2500);
+  }
+
+  /* ---------- Init ---------- */
+  detectServer();
+
+})();
+</script>
+
+</body>
+</html>

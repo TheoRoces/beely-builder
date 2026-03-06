@@ -1,0 +1,57 @@
+/* ==========================================================================
+   BUILDER API — Client HTTP pour le serveur Python
+   ========================================================================== */
+(function () {
+  'use strict';
+
+  var BASE = window.location.origin;
+
+  function post(endpoint, body) {
+    return fetch(BASE + endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {})
+    }).then(function (resp) {
+      return resp.json().then(function (data) {
+        if (!resp.ok) throw new Error(data.error || 'Erreur ' + resp.status);
+        return data;
+      });
+    });
+  }
+
+  window.BuilderAPI = {
+    // ── Configurateur ──
+    cfgRead: function (file) { return post('/api/cfg-read', { file: file }); },
+    cfgSave: function (file, content) { return post('/api/cfg-save', { file: file, content: content }); },
+
+    // ── Pages ──
+    pagesList: function () { return post('/api/pages-list'); },
+    pageRead: function (path) { return post('/api/page-read', { path: path }); },
+    pageWrite: function (path, content) { return post('/api/page-write', { path: path, content: content }); },
+    pageCreate: function (filename) { return post('/api/page-create', { filename: filename }); },
+    pageDelete: function (path) { return post('/api/page-delete', { path: path }); },
+    pageRename: function (oldPath, newPath) { return post('/api/page-rename', { oldPath: oldPath, newPath: newPath }); },
+    pageDuplicate: function (sourcePath, newFilename) { return post('/api/page-duplicate', { sourcePath: sourcePath, newFilename: newFilename }); },
+
+    // ── Wireframes ──
+    wireframesCatalog: function () { return post('/api/wireframes-catalog'); },
+    wireframeRead: function (category, file) { return post('/api/wireframe-read', { category: category, file: file }); },
+
+    // ── Icônes ──
+    iconsList: function () { return post('/api/icons-list'); },
+
+    // ── Médiathèque ──
+    mediaList: function () { return post('/api/media-list'); },
+    mediaUpload: function (filename, base64data) { return post('/api/media-upload', { filename: filename, data: base64data }); },
+    mediaDelete: function (path) { return post('/api/media-delete', { path: path }); },
+
+    // ── Registre ──
+    registryRead: function () { return post('/api/registry-read'); },
+    registryWrite: function (registry) { return post('/api/registry-write', { registry: registry }); },
+
+    // ── Déploiement ──
+    deploy: function (target) { return post('/api/deploy', { target: target }); },
+    gitPush: function (message) { return post('/api/git-push', { message: message }); },
+    deployConfig: function () { return post('/api/deploy-config'); }
+  };
+})();
