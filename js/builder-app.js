@@ -1,5 +1,5 @@
 /* ==========================================================================
-   BUILDER APP — Shell principal, navigation, toasts, etat global
+   BUILDER APP — Shell principal, navigation, toasts, état global
    ========================================================================== */
 (function () {
   'use strict';
@@ -8,9 +8,7 @@
   var state = {
     currentPanel: 'dashboard',
     registry: null,
-    siteName: '',
-    editingPage: null,  // path de la page en cours d'edition
-    editorDirty: false   // modifications non sauvegardées dans l'éditeur
+    siteName: ''
   };
 
   /* ---------- DOM refs ---------- */
@@ -18,53 +16,8 @@
   var panels = document.querySelectorAll('.bld-panel');
   var siteNameEl = document.getElementById('siteName');
 
-  /* ---------- Unsaved changes modal ---------- */
-  var pendingPanelId = null; // panel cible si navigation bloquée
-
-  /**
-   * Modal 3 choix : Sauvegarder (confirm=true), Abandonner (cancel=false), Annuler (overlay/Esc=null)
-   */
-  async function handleUnsavedNavigation(targetPanelId) {
-    pendingPanelId = targetPanelId;
-    var result = await BuilderModal.confirm({
-      title: 'Modifications non sauvegardées',
-      message: 'Voulez-vous sauvegarder avant de quitter l\'éditeur ?',
-      confirmText: 'Sauvegarder',
-      cancelText: 'Abandonner',
-      variant: 'primary'
-    });
-    if (result === true) {
-      // Sauvegarder puis naviguer
-      if (window.BuilderCanvas && BuilderCanvas.savePage) {
-        await BuilderCanvas.savePage();
-      }
-      state.editorDirty = false;
-      doSwitchPanel(targetPanelId);
-    } else if (result === false) {
-      // Abandonner les modifications
-      state.editorDirty = false;
-      doSwitchPanel(targetPanelId);
-    }
-    // result === null → Annuler (overlay/Esc) — rester sur l'éditeur
-    pendingPanelId = null;
-  }
-
   /* ---------- Navigation ---------- */
   function switchPanel(panelId, pushState) {
-    // Guard : si on quitte l'éditeur avec des modifications non sauvegardées
-    if (state.currentPanel === 'editor' && panelId !== 'editor' && state.editorDirty) {
-      handleUnsavedNavigation(panelId);
-      return;
-    }
-    doSwitchPanel(panelId, pushState);
-  }
-
-  function doSwitchPanel(panelId, pushState) {
-    // Cacher le lien éditeur quand on quitte l'éditeur
-    if (state.currentPanel === 'editor' && panelId !== 'editor') {
-      var editorLink = document.getElementById('sidebarEditorLink');
-      if (editorLink) editorLink.style.display = 'none';
-    }
     state.currentPanel = panelId;
 
     sidebarLinks.forEach(function (link) {
@@ -87,9 +40,6 @@
     if (panelId === 'pages' && window.BuilderPages) {
       window.BuilderPages.refresh();
     }
-    if (panelId === 'editor' && window.BuilderCanvas) {
-      window.BuilderCanvas.refresh();
-    }
     if (panelId === 'configurator' && window.BuilderConfigurator) {
       window.BuilderConfigurator.refresh();
     }
@@ -106,13 +56,13 @@
     });
   });
 
-  // Lire le hash au chargement — ne pas aller directement sur l'éditeur
+  // Lire le hash au chargement
   var initialHash = window.location.hash.replace('#', '') || 'dashboard';
-  var validPanels = ['dashboard', 'pages', 'configurator', 'lib-wireframes', 'lib-icons', 'lib-components', 'lib-elements', 'lib-animations', 'lib-grid', 'lib-media'];
+  var validPanels = ['dashboard', 'pages', 'configurator', 'lib-icons', 'lib-media'];
   if (validPanels.indexOf(initialHash) !== -1) {
-    doSwitchPanel(initialHash, false);
+    switchPanel(initialHash, false);
   } else {
-    doSwitchPanel('dashboard', false);
+    switchPanel('dashboard', false);
   }
 
   window.addEventListener('hashchange', function () {
@@ -210,11 +160,8 @@
         var parts = pagePath.split('/');
         var folder = parts[0];
         var filename = parts[parts.length - 1];
-        // Ne pas auto-parenter index.html sur lui-même
         if (filename === 'index.html' && parts.length === 2) return;
-        // Priorité 1 : parent racine (ex: blog.html pour blog/article.html)
         var rootParent = folder + '.html';
-        // Priorité 2 : index dans le dossier (ex: docs/index.html pour docs/getting-started.html)
         var indexParent = folder + '/index.html';
         if (registry.pages[rootParent]) {
           registry.pages[pagePath].parent = rootParent;
@@ -264,11 +211,8 @@
           var parts = pagePath.split('/');
           var folder = parts[0];
           var filename = parts[parts.length - 1];
-          // Ne pas auto-parenter index.html sur lui-même
           if (filename === 'index.html' && parts.length === 2) return;
-          // Priorité 1 : parent racine (ex: blog.html pour blog/article.html)
           var rootParent = folder + '.html';
-          // Priorité 2 : index dans le dossier (ex: docs/index.html pour docs/getting-started.html)
           var indexParent = folder + '/index.html';
           if (reg.pages[rootParent]) {
             reg.pages[pagePath].parent = rootParent;
@@ -299,14 +243,6 @@
     init: init,
     saveRegistry: function () {
       return BuilderAPI.registryWrite(state.registry);
-    },
-    editPage: function (pagePath) {
-      state.editingPage = pagePath;
-      state.editorDirty = false;
-      switchPanel('editor');
-    },
-    setEditorDirty: function (dirty) {
-      state.editorDirty = dirty;
     }
   };
 

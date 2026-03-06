@@ -144,10 +144,6 @@ class BuilderHandler(SimpleHTTPRequestHandler):
         # ── Pages ──
         elif path == '/api/pages-list':
             self._handle_pages_list()
-        elif path == '/api/page-read':
-            self._handle_page_read(body)
-        elif path == '/api/page-write':
-            self._handle_page_write(body)
         elif path == '/api/page-create':
             self._handle_page_create(body)
         elif path == '/api/page-delete':
@@ -156,12 +152,6 @@ class BuilderHandler(SimpleHTTPRequestHandler):
             self._handle_page_rename(body)
         elif path == '/api/page-duplicate':
             self._handle_page_duplicate(body)
-
-        # ── Wireframes ──
-        elif path == '/api/wireframes-catalog':
-            self._handle_wireframes_catalog()
-        elif path == '/api/wireframe-read':
-            self._handle_wireframe_read(body)
 
         # ── Icônes ──
         elif path == '/api/icons-list':
@@ -355,37 +345,6 @@ class BuilderHandler(SimpleHTTPRequestHandler):
         pages = scan_html_pages()
         self._json(200, {'ok': True, 'pages': pages})
 
-    def _handle_page_read(self, body):
-        path_str = body.get('path', '')
-        filepath = safe_path(path_str)
-        if not filepath:
-            return self._json(400, {'error': 'Chemin invalide'})
-        if not filepath.endswith('.html'):
-            return self._json(400, {'error': 'Seuls les fichiers .html sont autorisés'})
-        if not os.path.exists(filepath):
-            return self._json(404, {'error': 'Fichier introuvable'})
-        with open(filepath, 'r', encoding='utf-8') as f:
-            content = f.read()
-        self._json(200, {'ok': True, 'path': path_str, 'content': content})
-
-    def _handle_page_write(self, body):
-        path_str = body.get('path', '')
-        content = body.get('content', '')
-        if is_protected_path(path_str):
-            return self._json(403, {'error': 'Dossier protégé'})
-        filepath = safe_path(path_str)
-        if not filepath:
-            return self._json(400, {'error': 'Chemin invalide'})
-        if not filepath.endswith('.html'):
-            return self._json(400, {'error': 'Seuls les fichiers .html sont autorisés'})
-        # Créer le dossier parent si nécessaire
-        parent_dir = os.path.dirname(filepath)
-        if not os.path.exists(parent_dir):
-            os.makedirs(parent_dir, exist_ok=True)
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(content)
-        self._json(200, {'ok': True, 'path': path_str})
-
     def _handle_page_create(self, body):
         filename = body.get('filename', '')
         if not filename or not filename.endswith('.html'):
@@ -477,46 +436,6 @@ class BuilderHandler(SimpleHTTPRequestHandler):
             os.makedirs(parent_dir, exist_ok=True)
         shutil.copy2(source_filepath, new_filepath)
         self._json(200, {'ok': True, 'path': new_filename})
-
-    # ═══════════════════════════════════════════════════════
-    #  WIREFRAMES
-    # ═══════════════════════════════════════════════════════
-
-    def _handle_wireframes_catalog(self):
-        wf_dir = os.path.join(ROOT, 'wireframes')
-        if not os.path.exists(wf_dir):
-            return self._json(200, {'ok': True, 'categories': []})
-
-        categories = []
-        for name in sorted(os.listdir(wf_dir)):
-            cat_path = os.path.join(wf_dir, name)
-            if not os.path.isdir(cat_path):
-                continue
-            files = sorted([f for f in os.listdir(cat_path) if f.endswith('.html')])
-            if files:
-                categories.append({
-                    'name': name.replace('-', ' ').title(),
-                    'slug': name,
-                    'count': len(files),
-                    'files': files
-                })
-
-        self._json(200, {'ok': True, 'categories': categories})
-
-    def _handle_wireframe_read(self, body):
-        category = body.get('category', '')
-        filename = body.get('file', '')
-        # Sécurité : pas de traversal
-        if '/' in category or '\\' in category or '..' in category:
-            return self._json(400, {'error': 'Catégorie invalide'})
-        if '/' in filename or '\\' in filename or '..' in filename:
-            return self._json(400, {'error': 'Nom de fichier invalide'})
-        filepath = os.path.join(ROOT, 'wireframes', category, filename)
-        if not os.path.exists(filepath):
-            return self._json(404, {'error': 'Wireframe introuvable'})
-        with open(filepath, 'r', encoding='utf-8') as f:
-            content = f.read()
-        self._json(200, {'ok': True, 'content': content})
 
     # ═══════════════════════════════════════════════════════
     #  ICÔNES

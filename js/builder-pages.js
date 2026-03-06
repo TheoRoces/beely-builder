@@ -162,13 +162,7 @@
     if (isDraft) badge = '<span class="bld-tree__badge bld-tree__badge--draft">Brouillon</span>';
     else if (isTemplate) badge = '<span class="bld-tree__badge bld-tree__badge--template">Template</span>';
 
-    // Actions
     var actionsHtml = '';
-    if (!isLocked) {
-      actionsHtml = '<div class="bld-tree__actions">'
-        + '<button class="bld-tree__btn" data-action="edit" title="Éditer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>'
-        + '</div>';
-    }
 
     // Shortened title
     var displayTitle = shortenTitle(page.title) || page.path.replace(/\.html$/, '');
@@ -210,14 +204,6 @@
         if (e.target.closest('[data-action]')) return;
         selectPage(path);
       });
-
-      // Bouton éditer
-      var editBtn = item.querySelector('[data-action="edit"]');
-      if (editBtn) {
-        editBtn.addEventListener('click', function () {
-          BuilderApp.editPage(path);
-        });
-      }
 
       // Bouton expand/collapse
       var expandBtn = item.querySelector('[data-action="toggle-expand"]');
@@ -424,21 +410,8 @@
         + '<label class="bld-field__label">Chemin</label>'
         + '<input class="bld-field__input" type="text" value="' + escapeAttr(path) + '" readonly style="opacity: 0.6;">'
         + '</div>'
-        + '<div class="bld-field__sep"></div>'
-        + '<div class="bld-field">'
-        + '<button class="bld-btn bld-btn--sm" data-action="view-page">'
-        + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
-        + ' Voir dans l\'éditeur'
-        + '</button>'
-        + '</div>'
         + '</div>';
 
-      var viewBtn = metaPanel.querySelector('[data-action="view-page"]');
-      if (viewBtn) {
-        viewBtn.addEventListener('click', function () {
-          BuilderApp.editPage(path);
-        });
-      }
       return;
     }
 
@@ -452,7 +425,6 @@
     });
 
     // Toolbar icons
-    var svgEdit = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
     var svgDraft = page.status === 'draft'
       ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
       : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
@@ -468,7 +440,6 @@
 
       // ── Toolbar icon-only ──
       + '<div class="bld-meta__toolbar">'
-      + '<button class="bld-meta__tool" data-action="edit-page" title="Éditer">' + svgEdit + '</button>'
       + '<button class="bld-meta__tool' + (isDraft ? ' bld-meta__tool--warning' : '') + '" data-action="toggle-status" title="' + draftTitle + '">' + svgDraft + '</button>'
       + '<button class="bld-meta__tool' + (isHome ? ' bld-meta__tool--active' : '') + '" data-action="set-homepage" title="Page d\'accueil"' + (isHome ? ' disabled' : '') + '>' + svgHome + '</button>'
       + '<button class="bld-meta__tool" data-action="duplicate-page" title="Dupliquer">' + svgDuplicate + '</button>'
@@ -639,13 +610,6 @@
         reg.homepage = path;
         saveAndRefresh();
         renderMetaPanel(path);
-      });
-    }
-
-    var editBtn = metaPanel.querySelector('[data-action="edit-page"]');
-    if (editBtn) {
-      editBtn.addEventListener('click', function () {
-        BuilderApp.editPage(path);
       });
     }
 
