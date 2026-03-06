@@ -1085,6 +1085,11 @@
     html += '<button class="bld-btn bld-btn--primary bld-btn--sm" id="gridCopyBtn">Copier</button>';
     html += '</div></div>';
 
+    // Reset
+    html += '<div class="bld-grid__group" style="text-align:center;">';
+    html += '<button class="bld-btn bld-btn--sm" id="gridResetBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Réinitialiser</button>';
+    html += '</div>';
+
     html += '</div>';
     contentEl.innerHTML = html;
 
@@ -1184,6 +1189,24 @@
       copyBtn.addEventListener('click', function () {
         var output = document.getElementById('gridOutput');
         if (output) copyToClipboard(output.textContent);
+      });
+    }
+
+    // Reset
+    var resetBtn = document.getElementById('gridResetBtn');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', function () {
+        gridState.type = 'grid';
+        gridState.cols = 3;
+        gridState.gap = 'md';
+        gridState.align = 'stretch';
+        gridState.itemCount = 3;
+        gridState.selectedItem = -1;
+        gridState.spans = {};
+        gridState.layout = '';
+        gridState.rowHeight = 'md';
+        gridState.bentoSizes = ['', '', '', '', '', '', '', '', '', '', '', ''];
+        renderGrid();
       });
     }
 
