@@ -376,9 +376,9 @@
     if (!newParentPath) {
       return basename; // retour à la racine
     }
-    // Le dossier du parent = slug du parent (sans .html)
-    var parentSlug = newParentPath.replace(/\.html$/, '').split('/').pop();
-    return parentSlug + '/' + basename;
+    // Le dossier du parent = chemin complet du parent (sans .html)
+    var parentDir = newParentPath.replace(/\.html$/, '');
+    return parentDir + '/' + basename;
   }
 
   /**
