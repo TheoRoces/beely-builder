@@ -56,6 +56,8 @@
         return r.text();
       })
       .then(function (svg) {
+        // Remplacer les fills hardcodés par currentColor pour respecter le thème
+        svg = svg.replace(/fill="#[0-9a-fA-F]{3,8}"/g, 'fill="currentColor"');
         svgCache[key] = svg;
         return svg;
       })
