@@ -13,7 +13,7 @@
     loaded = true;
 
     try {
-      var resp = await fetch('/builder/configurator.html');
+      var resp = await fetch('/configurateur/configurator.html');
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       var html = resp.text ? await resp.text() : '';
 

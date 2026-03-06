@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """
-Micro-serveur pour Beely Builder (Configurateur + Builder).
+Micro-serveur pour le Configurateur Site System.
 Sert les fichiers statiques du projet parent + gère les écritures via POST.
 
 Usage (depuis la racine du projet) :
-  python3 builder/configurator-server.py
-  → Configurateur : http://localhost:5555/builder/configurator.html
-  → Builder       : http://localhost:5555/builder/
+  python3 configurateur/configurator-server.py
+  → http://localhost:5555/configurateur/
 
 Zéro-dépendance (stdlib Python 3 uniquement).
 """
@@ -41,7 +40,7 @@ ALLOWED_CFG_FILES = {'config-site.js', '.env', '.deploy.env', '.htpasswd'}
 
 # Dossiers protégés (pas d'écriture/suppression de pages)
 PROTECTED_DIRS = {'core', 'wireframes', 'api', 'components', 'snippets',
-                  'assets', 'builder', 'data', 'docs',
+                  'assets', 'configurateur', 'data', 'docs',
                   '.git', '.claude', '.vscode', '.framework'}
 
 # Fichiers protégés contre la suppression
@@ -788,8 +787,7 @@ class BuilderHandler(SimpleHTTPRequestHandler):
 if __name__ == '__main__':
     server = HTTPServer(('localhost', PORT), BuilderHandler)
     print(f'\033[1m\033[34mSite System — Serveur local\033[0m')
-    print(f'  Configurateur : http://localhost:{PORT}/configurator.html')
-    print(f'  Builder       : http://localhost:{PORT}/builder/')
+    print(f'  Configurateur : http://localhost:{PORT}/configurateur/')
     print(f'  Ctrl+C pour arrêter\n')
     try:
         server.serve_forever()

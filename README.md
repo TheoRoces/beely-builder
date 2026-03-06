@@ -11,14 +11,14 @@ Outil d'administration pour le framework **Site System**.
 
 ## Utilisation
 
-Ce repo est utilisé comme **submodule Git** dans chaque projet client (dossier `builder/`).
+Ce repo est utilisé comme **submodule Git** dans chaque projet client (dossier `configurateur/`).
 
 ```bash
 # Depuis la racine d'un projet client
-python3 builder/configurator-server.py
+python3 configurateur/configurator-server.py
 
 # Puis ouvrir dans le navigateur :
-# http://localhost:5555/builder/
+# http://localhost:5555/configurateur/
 ```
 
 ## Fichiers principaux
