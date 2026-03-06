@@ -116,7 +116,7 @@
     var isDraft = page.status === 'draft';
     var isActive = selectedPage === page.path;
     var isTemplate = page.isTemplate || false;
-    var isLocked = isTemplate;
+    var isLocked = isTemplate || isHome;
     var hasChildren = childrenMap[page.path] && childrenMap[page.path].length > 0;
     var isCollapsed = page.collapsed || false;
 
@@ -305,6 +305,14 @@
     var reg = BuilderApp.state.registry;
     if (!reg || !reg.pages) return;
 
+    var homepage = reg.homepage || 'index.html';
+
+    // Protéger la homepage : elle reste toujours à la racine, pas déplaçable
+    if (draggedPath === homepage) {
+      BuilderApp.showToast('La page d\'accueil ne peut pas être déplacée', 'error');
+      return;
+    }
+
     var targetPage = reg.pages[targetPath];
     if (!targetPage) return;
 
@@ -458,12 +466,12 @@
       + '<input class="bld-field__input" type="text" data-meta="slug" value="' + escapeAttr(page.slug || '') + '">'
       + '</div>'
 
-      + '<div class="bld-field">'
+      + (isHome ? '' : '<div class="bld-field">'
       + '<label class="bld-field__label">Page parente</label>'
       + '<select class="bld-field__input" data-meta-select="parent">'
       + parentOptions
       + '</select>'
-      + '</div>'
+      + '</div>')
 
       + '<div class="bld-field__sep"></div>'
 
@@ -608,6 +616,10 @@
     if (setHomeBtn) {
       setHomeBtn.addEventListener('click', function () {
         reg.homepage = path;
+        // Forcer la homepage à la racine et en première position
+        page.parent = null;
+        page.order = -1;
+        page.updatedAt = new Date().toISOString();
         saveAndRefresh();
         renderMetaPanel(path);
       });
