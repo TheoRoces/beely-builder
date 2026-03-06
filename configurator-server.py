@@ -129,6 +129,27 @@ def scan_html_pages():
     return pages
 
 
+def _adjust_page_paths(filepath, old_depth, new_depth):
+    """Ajuste les chemins relatifs dans une page HTML après un déplacement.
+    old_depth/new_depth = nombre de / dans le chemin relatif à pages/.
+    Le préfixe racine est ../ * (depth + 1) car pages/ est déjà un niveau."""
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+        old_prefix = '../' * (old_depth + 1)
+        new_prefix = '../' * (new_depth + 1)
+        # Remplacer les chemins vers core/, components/, config-site.js
+        content = content.replace('src="' + old_prefix + 'core/', 'src="' + new_prefix + 'core/')
+        content = content.replace('href="' + old_prefix + 'core/', 'href="' + new_prefix + 'core/')
+        content = content.replace('src="' + old_prefix + 'config-site.js"', 'src="' + new_prefix + 'config-site.js"')
+        content = content.replace('src="' + old_prefix + 'components/', 'src="' + new_prefix + 'components/')
+        content = content.replace('href="' + old_prefix + 'docs/', 'href="' + new_prefix + 'docs/')
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(content)
+    except Exception as e:
+        print(f'Avertissement : impossible d\'ajuster les chemins de {filepath}: {e}')
+
+
 class BuilderHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=ROOT, **kwargs)
@@ -439,6 +460,12 @@ class BuilderHandler(SimpleHTTPRequestHandler):
             os.makedirs(parent_dir, exist_ok=True)
 
         shutil.move(old_filepath, new_filepath)
+
+        # Ajuster les chemins relatifs dans le fichier si la profondeur change
+        old_depth = old_path.count('/')
+        new_depth = new_path.count('/')
+        if old_depth != new_depth:
+            _adjust_page_paths(new_filepath, old_depth, new_depth)
 
         # Nettoyer le dossier source s'il est vide
         old_parent_dir = os.path.dirname(old_filepath)
