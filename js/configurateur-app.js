@@ -56,14 +56,20 @@
     });
   });
 
-  // Lire le hash au chargement
+  // Lire le hash au chargement — activer visuellement le panel (sidebar + affichage)
+  // mais NE PAS appeler les callbacks (refresh) avant que init() ait chargé les données
   var initialHash = window.location.hash.replace('#', '') || 'dashboard';
   var validPanels = ['dashboard', 'pages', 'configurator', 'lib-icons', 'lib-media'];
-  if (validPanels.indexOf(initialHash) !== -1) {
-    switchPanel(initialHash, false);
-  } else {
-    switchPanel('dashboard', false);
-  }
+  var initialPanel = validPanels.indexOf(initialHash) !== -1 ? initialHash : 'dashboard';
+
+  // Activation visuelle immédiate (sans callbacks)
+  state.currentPanel = initialPanel;
+  sidebarLinks.forEach(function (link) {
+    link.classList.toggle('bld-sidebar__link--active', link.getAttribute('data-panel') === initialPanel);
+  });
+  panels.forEach(function (panel) {
+    panel.classList.toggle('bld-panel--active', panel.getAttribute('data-panel-id') === initialPanel);
+  });
 
   window.addEventListener('hashchange', function () {
     var hash = window.location.hash.replace('#', '');
@@ -113,8 +119,8 @@
       console.error('Erreur chargement registre:', e);
     }
 
-    // Initialiser le dashboard
-    if (window.BuilderDashboard) window.BuilderDashboard.refresh();
+    // Déclencher les callbacks du panel actif (données maintenant chargées)
+    switchPanel(state.currentPanel, false);
   }
 
   async function syncRegistryFromDisk() {
