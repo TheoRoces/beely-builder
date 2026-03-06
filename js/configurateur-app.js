@@ -119,6 +119,17 @@
       console.error('Erreur chargement registre:', e);
     }
 
+    // Garde-fou : la homepage doit toujours être à la racine
+    var homepage = state.registry && state.registry.homepage || 'index.html';
+    if (state.registry && state.registry.pages && state.registry.pages[homepage]) {
+      var homePage = state.registry.pages[homepage];
+      if (homePage.parent !== null || (homePage.order !== undefined && homePage.order > 0)) {
+        homePage.parent = null;
+        homePage.order = -1;
+        await BuilderAPI.registryWrite(state.registry);
+      }
+    }
+
     // Déclencher les callbacks du panel actif (données maintenant chargées)
     switchPanel(state.currentPanel, false);
   }
