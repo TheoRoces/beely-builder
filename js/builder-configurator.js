@@ -30,22 +30,11 @@
         var css = styleEl.textContent;
         // Retirer les règles qui affectent html/body globalement
         css = css.replace(/html\s*\{[^}]*\}/g, '');
-        // Scoper .cfg-layout pour ne pas prendre toute la hauteur
-        css = css.replace(
-          /\.cfg-layout\s*\{([^}]*)\}/,
-          '.cfg-layout { $1 }'.replace('min-height: calc(100vh - 57px)', 'min-height: 100%')
-        );
-        // Adapter la sidebar pour ne pas être sticky par rapport au viewport
-        css = css.replace(
-          /\.cfg-sidebar\s*\{([^}]*)\}/,
-          function (match, inner) {
-            return '.cfg-sidebar {' + inner
-              .replace(/position:\s*sticky;?/, 'position: sticky;')
-              .replace(/top:\s*57px;?/, 'top: 0;')
-              .replace(/height:\s*calc\(100vh - 57px\);?/, 'height: 100%;')
-            + '}';
-          }
-        );
+        // Supprimer les styles de .cfg-layout, .cfg-sidebar, .cfg-content
+        // car ils sont redéfinis dans builder.css via .bld-configurator-embed
+        css = css.replace(/\.cfg-layout\s*\{[^}]*\}/g, '');
+        css = css.replace(/\.cfg-sidebar\s*\{[^}]*\}/g, '');
+        css = css.replace(/\.cfg-content\s*\{[^}]*\}/g, '');
         s.textContent = css;
         document.head.appendChild(s);
       });

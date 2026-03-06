@@ -940,26 +940,29 @@ body { margin: 0; overflow: hidden; height: 100vh; }
   height: 100%;
 }
 
-/* Layout 2 colonnes style Pages */
+/* Layout 2 colonnes style Pages — seule source de vérité (les styles
+   originaux de configurator.html sont supprimés par builder-configurator.js) */
 .bld-configurator-embed .cfg-layout {
-  height: 100%;
+  display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
 }
 
 .bld-configurator-embed .cfg-sidebar {
-  position: static;
-  height: auto;
-  max-height: 100%;
   overflow-y: auto;
   background: var(--color-bg);
   border-right: 1px solid var(--color-border);
-  padding: var(--space-4) var(--space-2);
+  padding: var(--space-6) var(--space-2);
+  padding-right: var(--space-4);
 }
 
 .bld-configurator-embed .cfg-content {
   overflow-y: auto;
+  padding: var(--space-8) var(--space-10);
   max-width: none;
+  min-width: 0;
 }
 
 .bld-editor__catalog {
@@ -1527,6 +1530,20 @@ body { margin: 0; overflow: hidden; height: 100vh; }
 
 .bld-lib__header {
   margin-bottom: var(--space-5);
+}
+
+.bld-lib__header--with-actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.bld-lib__header-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  padding-top: var(--space-1);
 }
 
 .bld-lib__title {

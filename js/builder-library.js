@@ -661,18 +661,19 @@
   function replayPreview() {
     var box = document.getElementById('animPreviewBox');
     if (!box) return;
-    // Reset
+    // Reset complet — supprimer toutes les classes sauf la base
     box.className = 'bld-anim__preview-item';
-    box.classList.remove('anim--visible');
-    // Force reflow
-    void box.offsetHeight;
-    // Apply classes
+    // Force reflow pour réinitialiser les transitions
+    void box.offsetWidth;
+    // Appliquer les nouvelles classes d'animation
     var classes = getAnimClasses();
     classes.forEach(function (cls) { box.classList.add(cls); });
-    // Trigger animation after short delay
-    setTimeout(function () {
+    // Second reflow pour que le navigateur prenne en compte le nouvel état
+    void box.offsetWidth;
+    // Déclencher l'animation au prochain frame
+    requestAnimationFrame(function () {
       box.classList.add('anim--visible');
-    }, 50);
+    });
   }
 
   /* ══════════════════════════════════════
@@ -1350,6 +1351,44 @@
   function hideItemConfig() {
     var configEl = document.getElementById('gridItemConfig');
     if (configEl) configEl.style.display = 'none';
+  }
+
+  /* ── Header action buttons (statiques dans le HTML) ── */
+
+  // Animations : Copier (header)
+  var animHeaderCopy = document.getElementById('animHeaderCopyBtn');
+  if (animHeaderCopy) {
+    animHeaderCopy.addEventListener('click', function () {
+      var output = document.getElementById('animOutput');
+      if (output && output.textContent) copyToClipboard(output.textContent);
+    });
+  }
+
+  // Grille : Copier (header)
+  var gridHeaderCopy = document.getElementById('gridHeaderCopyBtn');
+  if (gridHeaderCopy) {
+    gridHeaderCopy.addEventListener('click', function () {
+      var output = document.getElementById('gridOutput');
+      if (output && output.textContent) copyToClipboard(output.textContent);
+    });
+  }
+
+  // Grille : Réinitialiser (header)
+  var gridHeaderReset = document.getElementById('gridHeaderResetBtn');
+  if (gridHeaderReset) {
+    gridHeaderReset.addEventListener('click', function () {
+      gridState.type = 'grid';
+      gridState.cols = 3;
+      gridState.gap = 'md';
+      gridState.align = 'stretch';
+      gridState.itemCount = 3;
+      gridState.selectedItem = -1;
+      gridState.spans = {};
+      gridState.layout = '';
+      gridState.rowHeight = 'md';
+      gridState.bentoSizes = ['', '', '', '', '', '', '', '', '', '', '', ''];
+      renderGrid();
+    });
   }
 
   /* ══════════════════════════════════════
