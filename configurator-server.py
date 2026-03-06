@@ -37,7 +37,7 @@ ALLOWED_ORIGINS = {
 }
 
 # Fichiers autorisés en écriture directe (configurateur)
-ALLOWED_CFG_FILES = {'config-site.js', '.env', '.deploy.env'}
+ALLOWED_CFG_FILES = {'config-site.js', '.env', '.deploy.env', '.htpasswd'}
 
 # Dossiers protégés (pas d'écriture/suppression de pages)
 PROTECTED_DIRS = {'core', 'wireframes', 'api', 'components', 'snippets',
@@ -138,6 +138,8 @@ class BuilderHandler(SimpleHTTPRequestHandler):
             self._handle_cfg_save(body)
         elif path == '/api/cfg-read':
             self._handle_cfg_read(body)
+        elif path == '/api/cfg-htpasswd':
+            self._handle_cfg_htpasswd(body)
 
         # ── Pages ──
         elif path == '/api/pages-list':
@@ -220,6 +222,130 @@ class BuilderHandler(SimpleHTTPRequestHandler):
         with open(filepath, 'r', encoding='utf-8') as f:
             content = f.read()
         self._json(200, {'ok': True, 'file': filename, 'content': content})
+
+    def _handle_cfg_htpasswd(self, body):
+        """Gère la protection HTTP : crée/supprime .htpasswd + injecte/retire le bloc auth dans .htaccess."""
+        enabled = body.get('enabled', False)
+        username = body.get('username', '').strip()
+        password = body.get('password', '').strip()
+        realm = body.get('realm', 'Accès restreint').strip()
+
+        htpasswd_path = os.path.join(ROOT, '.htpasswd')
+        htaccess_path = os.path.join(ROOT, '.htaccess')
+
+        # Marqueurs pour retrouver le bloc dans .htaccess
+        BEGIN_MARKER = '# --- BEGIN Protection HTTP (htpasswd) ---'
+        END_MARKER = '# --- END Protection HTTP (htpasswd) ---'
+
+        if not enabled:
+            # Supprimer .htpasswd
+            if os.path.exists(htpasswd_path):
+                os.remove(htpasswd_path)
+            # Retirer le bloc auth du .htaccess
+            if os.path.exists(htaccess_path):
+                with open(htaccess_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                if BEGIN_MARKER in content:
+                    lines = content.split('\n')
+                    new_lines = []
+                    skip = False
+                    for line in lines:
+                        if line.strip() == BEGIN_MARKER:
+                            skip = True
+                            continue
+                        if line.strip() == END_MARKER:
+                            skip = False
+                            continue
+                        if not skip:
+                            new_lines.append(line)
+                    # Nettoyer les lignes vides consécutives en début
+                    result = '\n'.join(new_lines)
+                    while result.startswith('\n'):
+                        result = result[1:]
+                    with open(htaccess_path, 'w', encoding='utf-8') as f:
+                        f.write(result)
+            return self._json(200, {'ok': True, 'action': 'disabled'})
+
+        # Validation
+        if not username or not password:
+            return self._json(400, {'error': 'Identifiant et mot de passe requis'})
+
+        # Générer le hash avec htpasswd (disponible sur macOS via Apache)
+        try:
+            result = subprocess.run(
+                ['htpasswd', '-nbB', username, password],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode != 0:
+                return self._json(500, {'error': 'Erreur htpasswd: ' + result.stderr.strip()})
+            htpasswd_line = result.stdout.strip()
+        except FileNotFoundError:
+            # Fallback : hash apr1 via openssl
+            try:
+                result = subprocess.run(
+                    ['openssl', 'passwd', '-apr1', password],
+                    capture_output=True, text=True, timeout=5
+                )
+                if result.returncode != 0:
+                    return self._json(500, {'error': 'Erreur openssl: ' + result.stderr.strip()})
+                htpasswd_line = username + ':' + result.stdout.strip()
+            except FileNotFoundError:
+                return self._json(500, {'error': 'Ni htpasswd ni openssl disponibles sur ce système'})
+
+        # Écrire .htpasswd
+        with open(htpasswd_path, 'w', encoding='utf-8') as f:
+            f.write(htpasswd_line + '\n')
+
+        # Injecter le bloc auth dans .htaccess
+        abs_htpasswd = os.path.abspath(htpasswd_path)
+        auth_block = '\n'.join([
+            BEGIN_MARKER,
+            'AuthType Basic',
+            'AuthName "' + realm.replace('"', '\\"') + '"',
+            'AuthUserFile ' + abs_htpasswd,
+            'Require valid-user',
+            END_MARKER
+        ])
+
+        if os.path.exists(htaccess_path):
+            with open(htaccess_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            if BEGIN_MARKER in content:
+                # Remplacer le bloc existant
+                lines = content.split('\n')
+                new_lines = []
+                skip = False
+                replaced = False
+                for line in lines:
+                    if line.strip() == BEGIN_MARKER:
+                        skip = True
+                        if not replaced:
+                            new_lines.append(auth_block)
+                            replaced = True
+                        continue
+                    if line.strip() == END_MARKER:
+                        skip = False
+                        continue
+                    if not skip:
+                        new_lines.append(line)
+                content = '\n'.join(new_lines)
+            else:
+                # Injecter après la première ligne (ErrorDocument 404)
+                lines = content.split('\n')
+                insert_idx = 1  # Après la première ligne
+                for i, line in enumerate(lines):
+                    if line.startswith('ErrorDocument'):
+                        insert_idx = i + 1
+                        break
+                lines.insert(insert_idx, '')
+                lines.insert(insert_idx + 1, auth_block)
+                content = '\n'.join(lines)
+
+            with open(htaccess_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+
+        self._json(200, {'ok': True, 'action': 'enabled', 'line': htpasswd_line})
 
     # ═══════════════════════════════════════════════════════
     #  PAGES

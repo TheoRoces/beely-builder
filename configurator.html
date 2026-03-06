@@ -136,6 +136,28 @@ html { scroll-padding-top: 5rem; }
   grid-column: 1 / -1;
 }
 
+.cfg-hint {
+  font-size: var(--text-sm);
+  color: var(--color-text-light);
+  margin-bottom: var(--space-4);
+  line-height: 1.5;
+}
+
+.cfg-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  cursor: pointer;
+  font-weight: var(--font-weight-medium);
+}
+
+.cfg-toggle input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
 .cfg-field label {
   font-size: var(--text-sm);
   font-weight: var(--font-weight-medium);
@@ -375,6 +397,7 @@ html { scroll-padding-top: 5rem; }
       <a data-tab="legal">Mentions l&eacute;gales</a>
       <a data-tab="env">Serveur (.env)</a>
       <a data-tab="deploy">D&eacute;ploiement</a>
+      <a data-tab="htpasswd">Protection HTTP</a>
     </nav>
 
     <!-- ========== CONTENT ========== -->
@@ -741,6 +764,44 @@ html { scroll-padding-top: 5rem; }
         <div class="cfg-preview" id="preview-deploy"><button class="cfg-copy-btn">Copier</button></div>
       </div>
 
+      <!-- ====== TAB: HTPASSWD ====== -->
+      <div class="cfg-panel" data-panel="htpasswd">
+        <h2>Protection par mot de passe</h2>
+        <p class="cfg-hint">Prot&egrave;ge tout le site avec une authentification HTTP Basic. Id&eacute;al pour un site en d&eacute;veloppement ou pr&eacute;-production.</p>
+
+        <div class="cfg-fields">
+          <div class="cfg-field cfg-field--full">
+            <label class="cfg-toggle">
+              <input type="checkbox" id="htpasswdEnabled" data-key="htpasswd.enabled">
+              <span>Activer la protection HTTP</span>
+            </label>
+          </div>
+        </div>
+
+        <div id="htpasswdFields" style="display:none;">
+          <div class="cfg-fields">
+            <div class="cfg-field">
+              <label>Identifiant</label>
+              <input type="text" data-key="htpasswd.username" placeholder="admin">
+            </div>
+            <div class="cfg-field">
+              <label>Mot de passe</label>
+              <input type="text" data-key="htpasswd.password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;">
+            </div>
+            <div class="cfg-field cfg-field--full">
+              <label>Message d&rsquo;invite</label>
+              <input type="text" data-key="htpasswd.realm" placeholder="Acc&egrave;s restreint">
+            </div>
+          </div>
+
+          <h2>Aper&ccedil;u — .htpasswd</h2>
+          <div class="cfg-preview" id="preview-htpasswd"><button class="cfg-copy-btn">Copier</button></div>
+
+          <h2>Aper&ccedil;u — Bloc .htaccess</h2>
+          <div class="cfg-preview" id="preview-htaccess-auth"><button class="cfg-copy-btn">Copier</button></div>
+        </div>
+      </div>
+
     </main>
   </div>
 </div>
@@ -1036,6 +1097,47 @@ html { scroll-padding-top: 5rem; }
     ].join('\n');
   }
 
+  /* ---------- Htpasswd generators ---------- */
+  function generateHtpasswdPreview() {
+    var c = state.htpasswd || {};
+    if (!c.enabled) return '(Protection désactivée)';
+    return (c.username || 'admin') + ':{BCRYPT_HASH}';
+  }
+
+  function generateHtaccessAuth() {
+    var c = state.htpasswd || {};
+    if (!c.enabled) return '(Aucun bloc à injecter)';
+    return [
+      '# --- BEGIN Protection HTTP (htpasswd) ---',
+      'AuthType Basic',
+      'AuthName "' + (c.realm || 'Accès restreint') + '"',
+      'AuthUserFile {CHEMIN_ABSOLU}/.htpasswd',
+      'Require valid-user',
+      '# --- END Protection HTTP (htpasswd) ---'
+    ].join('\n');
+  }
+
+  /* ---------- Htpasswd toggle ---------- */
+  var htpasswdCheckbox = document.getElementById('htpasswdEnabled');
+  var htpasswdFields = document.getElementById('htpasswdFields');
+
+  function syncHtpasswdToggle() {
+    var enabled = !!(state.htpasswd && state.htpasswd.enabled);
+    htpasswdCheckbox.checked = enabled;
+    htpasswdFields.style.display = enabled ? '' : 'none';
+  }
+
+  htpasswdCheckbox.addEventListener('change', function () {
+    if (!state.htpasswd) state.htpasswd = {};
+    state.htpasswd.enabled = htpasswdCheckbox.checked;
+    saveState();
+    syncHtpasswdToggle();
+    updatePreviews();
+    scheduleAutoSave();
+  });
+
+  syncHtpasswdToggle();
+
   /* ---------- Update all previews ---------- */
   function updatePreviews() {
     setPreview('preview-site', generateSiteConfig());
@@ -1044,6 +1146,8 @@ html { scroll-padding-top: 5rem; }
     setPreview('preview-legal', generateLegalConfig());
     setPreview('preview-env', generateEnv());
     setPreview('preview-deploy', generateDeploy());
+    setPreview('preview-htpasswd', generateHtpasswdPreview());
+    setPreview('preview-htaccess-auth', generateHtaccessAuth());
   }
 
   function setPreview(id, text) {
@@ -1163,13 +1267,15 @@ html { scroll-padding-top: 5rem; }
       try {
         if (tab === 'env') {
           await serverWrite('.env', generateEnv());
-          showToast('.env enregistr\u00e9');
+          showToast('.env enregistré');
         } else if (tab === 'deploy') {
           await serverWrite('.deploy.env', generateDeploy());
-          showToast('.deploy.env enregistr\u00e9');
+          showToast('.deploy.env enregistré');
+        } else if (tab === 'htpasswd') {
+          await saveHtpasswd();
         } else {
           await serverWrite('config-site.js', generateFullConfigSiteJS());
-          showToast('config-site.js enregistr\u00e9');
+          showToast('config-site.js enregistré');
         }
       } catch (e) {
         showToast('Erreur : ' + e.message);
@@ -1178,6 +1284,7 @@ html { scroll-padding-top: 5rem; }
       // Fallback: download
       if (tab === 'env') downloadFile('.env', generateEnv());
       else if (tab === 'deploy') downloadFile('.deploy.env', generateDeploy());
+      else if (tab === 'htpasswd') showToast('Connectez le serveur pour activer la protection HTTP');
       else downloadFile('config-site.js', generateFullConfigSiteJS());
     }
   });
@@ -1187,6 +1294,7 @@ html { scroll-padding-top: 5rem; }
     var tab = getActiveTab();
     if (tab === 'env') downloadFile('.env', generateEnv());
     else if (tab === 'deploy') downloadFile('.deploy.env', generateDeploy());
+    else if (tab === 'htpasswd') showToast('Utilisez "Enregistrer" avec le serveur pour la protection HTTP');
     else downloadFile('config-site.js', generateFullConfigSiteJS());
   });
 
@@ -1294,6 +1402,29 @@ html { scroll-padding-top: 5rem; }
     t.classList.add('cfg-toast--visible');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { t.classList.remove('cfg-toast--visible'); }, 2500);
+  }
+
+  /* ---------- Htpasswd save ---------- */
+  async function saveHtpasswd() {
+    var c = state.htpasswd || {};
+    var resp = await fetch(API_BASE + '/api/cfg-htpasswd', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        enabled: !!c.enabled,
+        username: c.username || '',
+        password: c.password || '',
+        realm: c.realm || 'Accès restreint'
+      })
+    });
+    var data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Erreur serveur');
+    if (data.action === 'enabled') {
+      showToast('Protection HTTP activée');
+    } else {
+      showToast('Protection HTTP désactivée');
+    }
+    updatePreviews();
   }
 
   /* ---------- Init ---------- */
