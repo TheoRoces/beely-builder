@@ -35,6 +35,8 @@
         css = css.replace(/\.cfg-layout\s*\{[^}]*\}/g, '');
         css = css.replace(/\.cfg-sidebar\s*\{[^}]*\}/g, '');
         css = css.replace(/\.cfg-content\s*\{[^}]*\}/g, '');
+        // Supprimer le bloc @media responsive qui redéfinit cfg-layout/sidebar/content
+        css = css.replace(/@media\s*\([^)]*767px[^)]*\)\s*\{[\s\S]*?\n\}/g, '');
         s.textContent = css;
         document.head.appendChild(s);
       });

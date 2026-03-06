@@ -940,27 +940,41 @@ body { margin: 0; overflow: hidden; height: 100vh; }
   height: 100%;
 }
 
+/* Neutraliser le .container de base.css qui centre et limite la largeur */
+.bld-configurator-embed .container {
+  max-width: none;
+  margin-inline: 0;
+  padding-inline: 0;
+  height: 100%;
+}
+
 /* Layout 2 colonnes style Pages — seule source de vérité (les styles
    originaux de configurator.html sont supprimés par builder-configurator.js) */
 .bld-configurator-embed .cfg-layout {
-  display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
+  display: grid !important;
+  grid-template-columns: 240px minmax(0, 1fr) !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  gap: 0;
 }
 
 .bld-configurator-embed .cfg-sidebar {
-  overflow-y: auto;
+  overflow-y: auto !important;
   background: var(--color-bg);
   border-right: 1px solid var(--color-border);
-  padding: var(--space-6) var(--space-2);
-  padding-right: var(--space-4);
+  padding: var(--space-6) var(--space-2) !important;
+  padding-right: var(--space-4) !important;
+  position: static !important;
+  height: auto !important;
+  border-bottom: none !important;
+  display: block !important;
+  flex-wrap: unset !important;
 }
 
 .bld-configurator-embed .cfg-content {
-  overflow-y: auto;
-  padding: var(--space-8) var(--space-10);
+  overflow-y: auto !important;
+  padding: var(--space-8) var(--space-10) !important;
   max-width: none;
   min-width: 0;
 }
