@@ -283,7 +283,7 @@
       // Sans lien, écouter tous les champs
       opts.fields.forEach(function (f) {
         inputs[f.key].addEventListener('input', function () { runValidation(); });
-        if (f.key === 'slug' || f.key === linked) {
+        if (f.key === 'slug' || (linked && f.key === linked.target)) {
           inputs[f.key].addEventListener('blur', function () {
             if (opts.linkedSlug && opts.linkedSlug.slugify) {
               inputs[f.key].value = opts.linkedSlug.slugify(inputs[f.key].value);

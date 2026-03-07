@@ -13,6 +13,13 @@
      HELPERS
      ══════════════════════════════════════ */
 
+  // Debounce utilitaire
+  var _metaSaveTimer = null;
+  function debouncedSave(delay) {
+    if (_metaSaveTimer) clearTimeout(_metaSaveTimer);
+    _metaSaveTimer = setTimeout(function () { saveAndRefresh(); }, delay || 400);
+  }
+
   function escapeHtml(str) {
     var div = document.createElement('div');
     div.textContent = str || '';
@@ -931,7 +938,7 @@
         + '<label class="bld-field__label">Dossier</label>'
         + '<div style="display: flex; gap: 8px; align-items: center;">'
         + '<input class="bld-field__input" type="text" value="' + escapeAttr(currentFolder || '(racine)') + '" readonly style="opacity: 0.6; flex: 1;">'
-        + '<button class="btn btn--sm" data-action="move-to-folder" title="Déplacer dans un dossier">Déplacer</button>'
+        + '<button class="bld-btn bld-btn--sm" data-action="move-to-folder" title="Déplacer dans un dossier">Déplacer</button>'
         + '</div>'
         + '</div>';
     }
@@ -1031,7 +1038,7 @@
 
         page[key] = val;
         page.updatedAt = new Date().toISOString();
-        saveAndRefresh();
+        debouncedSave();
       });
     });
 
