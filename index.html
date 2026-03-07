@@ -11,6 +11,12 @@
 </head>
 <body>
 
+<div class="bld-mobile-block">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+  <div class="bld-mobile-block__title">Écran trop petit</div>
+  <div class="bld-mobile-block__message">Le configurateur nécessite un écran d'au moins 600px de large. Utilisez un ordinateur ou agrandissez votre fenêtre.</div>
+</div>
+
 <div class="bld-layout">
 
   <!-- ══════════════════════════════════════ TOP BAR ══════════════════════════════════════ -->
@@ -164,7 +170,7 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Nouvelle page
             </button>
-            <button class="bld-btn bld-btn--sm" id="btnNewFolder" title="Nouveau dossier">
+            <button class="bld-btn bld-btn--sm bld-btn--icon" id="btnNewFolder" title="Nouveau dossier">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
             </button>
             <button class="bld-btn bld-btn--sm bld-btn--icon" id="btnRefreshPages" title="Rafraîchir" aria-label="Rafraîchir la liste des pages">
@@ -176,7 +182,7 @@
         <div class="bld-pages__right" id="pageMetaPanel">
           <div class="bld-meta__empty">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            <p>Sélectionnez une page pour voir ses propriétés.</p>
+            <p>Sélectionnez une page ou un dossier.</p>
           </div>
         </div>
       </div>
@@ -264,6 +270,7 @@
       <label class="bld-field__label" id="bldModalFieldLabel"></label>
       <input class="bld-field__input" type="text" id="bldModalFieldInput">
     </div>
+    <div id="bldModalFormFields"></div>
     <div class="bld-modal__actions" id="bldModalActions"></div>
   </div>
 </div>

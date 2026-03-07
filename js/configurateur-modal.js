@@ -78,6 +78,7 @@
     titleEl.textContent = opts.title || 'Confirmation';
     messageEl.textContent = opts.message || '';
     fieldWrap.style.display = 'none';
+    if (formFieldsEl) formFieldsEl.innerHTML = '';
 
     var variant = opts.variant || 'primary';
     var confirmText = opts.confirmText || 'Confirmer';
@@ -114,6 +115,7 @@
   function prompt(opts) {
     titleEl.textContent = opts.title || '';
     messageEl.textContent = opts.message || '';
+    if (formFieldsEl) formFieldsEl.innerHTML = '';
 
     fieldWrap.style.display = '';
     fieldLabel.textContent = opts.label || '';
@@ -152,12 +154,188 @@
   }
 
   /* ══════════════════════════════════════
+     FORM — Multi-champs avec validation temps réel
+     ══════════════════════════════════════ */
+
+  var formFieldsEl = document.getElementById('bldModalFormFields');
+
+  /**
+   * Modal Form — multi-champs avec validation temps réel
+   * @param {Object} opts
+   * @param {string} opts.title
+   * @param {string} [opts.message]
+   * @param {Array} opts.fields - [{ key, label, value, placeholder, helpText, readonly }]
+   * @param {Object} [opts.linkedSlug] - { source: 'name', target: 'slug', slugify: fn }
+   * @param {Function} [opts.validate] - function(values) → string|null
+   * @param {string} [opts.confirmText='OK']
+   * @param {string} [opts.cancelText='Annuler']
+   * @param {string} [opts.variant='primary']
+   * @returns {Promise<Object|null>}
+   */
+  function form(opts) {
+    titleEl.textContent = opts.title || '';
+    messageEl.textContent = opts.message || '';
+    fieldWrap.style.display = 'none';
+    formFieldsEl.innerHTML = '';
+
+    var inputs = {};
+    var errorEls = {};
+    var slugManuallyEdited = false;
+    var linked = opts.linkedSlug || null;
+
+    // Construire les champs
+    opts.fields.forEach(function (field) {
+      var wrap = document.createElement('div');
+      wrap.className = 'bld-field';
+      wrap.style.marginBottom = 'var(--space-4)';
+
+      var label = document.createElement('label');
+      label.className = 'bld-field__label';
+      label.textContent = field.label || '';
+      wrap.appendChild(label);
+
+      var input = document.createElement('input');
+      input.className = 'bld-field__input';
+      input.type = 'text';
+      input.value = field.value || '';
+      input.placeholder = field.placeholder || '';
+      if (field.readonly) input.readOnly = true;
+      wrap.appendChild(input);
+
+      if (field.helpText) {
+        var help = document.createElement('div');
+        help.className = 'bld-field__help';
+        help.textContent = field.helpText;
+        wrap.appendChild(help);
+      }
+
+      var errorEl = document.createElement('div');
+      errorEl.className = 'bld-field__error';
+      wrap.appendChild(errorEl);
+
+      inputs[field.key] = input;
+      errorEls[field.key] = errorEl;
+      formFieldsEl.appendChild(wrap);
+    });
+
+    // Boutons
+    var variant = opts.variant || 'primary';
+    var confirmText = opts.confirmText || 'OK';
+    var cancelText = opts.cancelText || 'Annuler';
+
+    actionsEl.innerHTML = '<button class="bld-btn bld-btn--ghost" data-modal-action="cancel">' + cancelText + '</button>'
+      + '<button class="bld-btn bld-btn--' + variant + '" data-modal-action="confirm">' + confirmText + '</button>';
+
+    var confirmBtn = actionsEl.querySelector('[data-modal-action="confirm"]');
+    actionsEl.querySelector('[data-modal-action="cancel"]').addEventListener('click', function () { close(null); });
+
+    // Collecter les valeurs
+    function getValues() {
+      var vals = {};
+      opts.fields.forEach(function (f) { vals[f.key] = inputs[f.key].value; });
+      return vals;
+    }
+
+    // Valider et mettre à jour l'UI
+    function runValidation() {
+      // Reset erreurs
+      opts.fields.forEach(function (f) {
+        errorEls[f.key].textContent = '';
+        inputs[f.key].classList.remove('bld-field__input--error');
+      });
+
+      if (!opts.validate) { confirmBtn.disabled = false; return; }
+
+      var err = opts.validate(getValues());
+      if (err) {
+        // Afficher l'erreur sur le champ slug (ou le dernier champ)
+        var targetKey = (linked && linked.target) || opts.fields[opts.fields.length - 1].key;
+        errorEls[targetKey].textContent = err;
+        inputs[targetKey].classList.add('bld-field__input--error');
+        confirmBtn.disabled = true;
+      } else {
+        confirmBtn.disabled = false;
+      }
+    }
+
+    // Lier slug au nom
+    if (linked && inputs[linked.source] && inputs[linked.target]) {
+      inputs[linked.source].addEventListener('input', function () {
+        if (!slugManuallyEdited) {
+          inputs[linked.target].value = linked.slugify(inputs[linked.source].value);
+        }
+        runValidation();
+      });
+
+      // Détecter édition manuelle du slug
+      inputs[linked.target].addEventListener('input', function () {
+        var autoSlug = linked.slugify(inputs[linked.source].value);
+        slugManuallyEdited = (inputs[linked.target].value !== autoSlug);
+        runValidation();
+      });
+
+      // Slug : sanitize au blur
+      inputs[linked.target].addEventListener('blur', function () {
+        inputs[linked.target].value = linked.slugify(inputs[linked.target].value);
+        runValidation();
+      });
+    } else {
+      // Sans lien, écouter tous les champs
+      opts.fields.forEach(function (f) {
+        inputs[f.key].addEventListener('input', function () { runValidation(); });
+        if (f.key === 'slug' || f.key === linked) {
+          inputs[f.key].addEventListener('blur', function () {
+            if (opts.linkedSlug && opts.linkedSlug.slugify) {
+              inputs[f.key].value = opts.linkedSlug.slugify(inputs[f.key].value);
+            }
+            runValidation();
+          });
+        }
+      });
+    }
+
+    // Confirmer
+    function doConfirm() {
+      if (confirmBtn.disabled) return;
+      close(getValues());
+    }
+
+    confirmBtn.addEventListener('click', doConfirm);
+
+    // Enter pour valider (sur le dernier champ)
+    var lastField = opts.fields[opts.fields.length - 1];
+    inputs[lastField.key].addEventListener('keydown', function handler(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        inputs[lastField.key].removeEventListener('keydown', handler);
+        doConfirm();
+      }
+    });
+
+    // Validation initiale
+    runValidation();
+
+    previousFocus = document.activeElement;
+    overlay.classList.add('bld-modal-overlay--visible');
+
+    // Focus le premier champ
+    var firstField = opts.fields[0];
+    setTimeout(function () {
+      inputs[firstField.key].focus();
+      if (inputs[firstField.key].value) inputs[firstField.key].select();
+    }, 50);
+
+    return new Promise(function (resolve) { currentResolve = resolve; });
+  }
+
+  /* ══════════════════════════════════════
      PUBLIC API
      ══════════════════════════════════════ */
 
   window.BuilderModal = {
     confirm: confirm,
-    prompt: prompt
+    prompt: prompt,
+    form: form
   };
 
 })();

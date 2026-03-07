@@ -186,6 +186,8 @@ class BuilderHandler(SimpleHTTPRequestHandler):
             self._handle_page_mkdir(body)
         elif path == '/api/page-rmdir':
             self._handle_page_rmdir(body)
+        elif path == '/api/page-move-folder':
+            self._handle_page_move_folder(body)
 
         # ── Icônes ──
         elif path == '/api/icons-list':
@@ -521,6 +523,55 @@ class BuilderHandler(SimpleHTTPRequestHandler):
             return self._json(409, {'error': 'Le dossier n\'est pas vide'})
         os.rmdir(target)
         self._json(200, {'ok': True})
+
+    def _handle_page_move_folder(self, body):
+        """Déplacer/renommer un dossier dans pages/ (avec ajustement des chemins HTML)."""
+        old_path = body.get('oldPath', '')
+        new_path = body.get('newPath', '')
+        if not old_path or not new_path:
+            return self._json(400, {'error': 'Chemins requis (oldPath, newPath)'})
+        if '..' in old_path or '..' in new_path or old_path.startswith('/') or new_path.startswith('/'):
+            return self._json(400, {'error': 'Chemin invalide'})
+        if is_protected_path(old_path) or is_protected_path(new_path):
+            return self._json(403, {'error': 'Dossier protégé'})
+        # Empêcher de déplacer un dossier dans lui-même
+        if new_path == old_path or new_path.startswith(old_path + '/'):
+            return self._json(400, {'error': 'Impossible de déplacer un dossier dans lui-même'})
+
+        old_dir = page_safe_path(old_path)
+        new_dir = page_safe_path(new_path)
+        if not old_dir or not new_dir:
+            return self._json(400, {'error': 'Chemin invalide'})
+        if not os.path.isdir(old_dir):
+            return self._json(404, {'error': 'Dossier source introuvable'})
+        if os.path.exists(new_dir):
+            return self._json(409, {'error': 'Le dossier cible existe déjà'})
+
+        # Créer le dossier parent si nécessaire
+        parent_dir = os.path.dirname(new_dir)
+        if parent_dir and not os.path.exists(parent_dir):
+            os.makedirs(parent_dir, exist_ok=True)
+
+        # Déplacer le dossier
+        shutil.move(old_dir, new_dir)
+
+        # Ajuster les chemins relatifs dans tous les fichiers HTML déplacés
+        for dirpath, dirnames, filenames in os.walk(new_dir):
+            for fname in filenames:
+                if not fname.endswith('.html'):
+                    continue
+                filepath = os.path.join(dirpath, fname)
+                # Calculer les profondeurs (relative à pages/)
+                pages_root = os.path.join(ROOT, PAGES_DIR)
+                rel = os.path.relpath(filepath, pages_root).replace('\\', '/')
+                new_depth = rel.count('/')
+                # Profondeur originale : remplacer new_path par old_path dans le chemin relatif
+                old_rel = old_path + rel[len(new_path):]
+                old_depth = old_rel.count('/')
+                if old_depth != new_depth:
+                    _adjust_page_paths(filepath, old_depth, new_depth)
+
+        self._json(200, {'ok': True, 'oldPath': old_path, 'newPath': new_path})
 
     # ═══════════════════════════════════════════════════════
     #  ICÔNES

@@ -32,6 +32,7 @@
     pageDuplicate: function (sourcePath, newFilename) { return post('/api/page-duplicate', { sourcePath: sourcePath, newFilename: newFilename }); },
     pageMkdir: function (name) { return post('/api/page-mkdir', { name: name }); },
     pageRmdir: function (path) { return post('/api/page-rmdir', { path: path }); },
+    pageMoveFolder: function (oldPath, newPath) { return post('/api/page-move-folder', { oldPath: oldPath, newPath: newPath }); },
 
     // ── Icônes ──
     iconsList: function () { return post('/api/icons-list'); },

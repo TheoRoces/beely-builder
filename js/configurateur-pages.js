@@ -7,6 +7,7 @@
   var treeEl = document.getElementById('pageTree');
   var metaPanel = document.getElementById('pageMetaPanel');
   var selectedPage = null;
+  var selectedFolder = null;
 
   /* ══════════════════════════════════════
      HELPERS
@@ -20,6 +21,15 @@
 
   function escapeAttr(str) {
     return (str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  /** Convertit un nom d'affichage en slug (sans accents, espaces, majuscules, caractères spéciaux) */
+  function slugify(str) {
+    return (str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase().trim()
+      .replace(/[^a-z0-9\-_]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
   }
 
   /** Extrait le dossier d'un chemin de page. Ex: 'blog/article.html' → 'blog', 'index.html' → '' */
@@ -190,13 +200,20 @@
     // Icône dossier
     var icon = '<svg class="bld-tree__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
 
-    var html = '<div class="bld-tree__item bld-tree__item--folder" data-folder="' + escapeAttr(folderPath) + '" data-level="' + level + '"'
+    // Nom d'affichage : utiliser name du registre ou le basename du chemin
+    var displayName = (folderData && folderData.name) || folderName;
+
+    var folderCls = 'bld-tree__item bld-tree__item--folder';
+    if (selectedFolder === folderPath) folderCls += ' bld-tree__item--active';
+
+    var html = '<div class="' + folderCls + '" data-folder="' + escapeAttr(folderPath) + '" data-level="' + level + '"'
       + ' data-type="folder"'
+      + ' draggable="true"'
       + ' style="padding-left: ' + indent + 'px; --drop-indent: ' + indent + 'px;">'
       + guidesHtml
       + expandHtml
       + icon
-      + '<span class="bld-tree__name">' + escapeHtml(folderName) + '</span>'
+      + '<span class="bld-tree__name">' + escapeHtml(displayName) + '</span>'
       + '</div>';
 
     // Contenu du dossier (si non collapsed)
@@ -242,13 +259,13 @@
       var isReadOnly = item.classList.contains('bld-tree__item--readonly');
 
       if (isFolder) {
-        // Click sur dossier → expand/collapse
+        // Click sur dossier → sélectionner et afficher panneau
         item.addEventListener('click', function (e) {
           if (e.target.closest('[data-action]')) return;
-          toggleFolder(path);
+          selectFolder(path);
         });
 
-        // Bouton expand/collapse
+        // Bouton expand/collapse (chevron)
         var expandBtn = item.querySelector('[data-action="toggle-folder"]');
         if (expandBtn) {
           expandBtn.addEventListener('click', function (e) {
@@ -256,6 +273,20 @@
             toggleFolder(path);
           });
         }
+
+        // Dossier = draggable
+        item.addEventListener('dragstart', function (e) {
+          e.dataTransfer.setData('text/plain', 'folder:' + path);
+          e.dataTransfer.effectAllowed = 'move';
+          item.classList.add('bld-tree__item--dragging');
+          // Empêcher le toggle au dragstart
+          e.stopPropagation();
+        });
+
+        item.addEventListener('dragend', function () {
+          item.classList.remove('bld-tree__item--dragging');
+          clearDropIndicators();
+        });
 
         // Dossier = droppable (zone 100% = déposer dedans)
         item.addEventListener('dragover', function (e) {
@@ -274,16 +305,18 @@
         item.addEventListener('drop', function (e) {
           e.preventDefault();
           clearDropIndicators();
-          var draggedPath = e.dataTransfer.getData('text/plain');
-          if (!draggedPath) return;
-          movePageToFolder(draggedPath, path);
+          var data = e.dataTransfer.getData('text/plain');
+          if (!data) return;
+
+          // Distinguer page vs dossier
+          if (data.indexOf('folder:') === 0) {
+            var draggedFolder = data.substring(7);
+            moveFolderToFolder(draggedFolder, path);
+          } else {
+            movePageToFolder(data, path);
+          }
         });
 
-        // Context menu sur dossier pour suppression
-        item.addEventListener('contextmenu', function (e) {
-          e.preventDefault();
-          showFolderContextMenu(e, path);
-        });
       } else {
         // Click → sélectionner
         item.addEventListener('click', function (e) {
@@ -335,17 +368,31 @@
           e.preventDefault();
           clearDropIndicators();
 
-          var draggedPath = e.dataTransfer.getData('text/plain');
-          if (!draggedPath || draggedPath === path) return;
+          var data = e.dataTransfer.getData('text/plain');
+          if (!data) return;
 
           var rect = item.getBoundingClientRect();
           var y = e.clientY - rect.top;
           var h = rect.height;
+          var position = y < h * 0.5 ? 'before' : 'after';
 
-          if (y < h * 0.5) {
-            movePage(draggedPath, path, 'before');
+          // Distinguer page vs dossier
+          if (data.indexOf('folder:') === 0) {
+            var draggedFolder = data.substring(7);
+            // Déplacer le dossier dans le même parent que la page cible + réordonner
+            var targetParent = getFolderFromPath(path);
+            var draggedParent = getFolderFromPath(draggedFolder);
+            if (draggedParent !== targetParent) {
+              // Déplacer le dossier dans le parent de la page
+              var basename = draggedFolder.split('/').pop();
+              var newFolderPath = targetParent ? targetParent + '/' + basename : basename;
+              if (newFolderPath !== draggedFolder) {
+                moveFolderToFolder(draggedFolder, targetParent || '');
+              }
+            }
           } else {
-            movePage(draggedPath, path, 'after');
+            if (data === path) return;
+            movePage(data, path, position);
           }
         });
       }
@@ -368,39 +415,164 @@
   }
 
   /* ══════════════════════════════════════
-     FOLDER CONTEXT MENU
+     FOLDER META PANEL
      ══════════════════════════════════════ */
 
-  function showFolderContextMenu(e, folderPath) {
-    // Fermer tout menu existant
-    var existing = document.querySelector('.bld-context-menu');
-    if (existing) existing.remove();
+  function renderFolderMetaPanel(folderPath) {
+    var reg = BuilderApp.state.registry;
+    if (!reg.folders || !reg.folders[folderPath]) {
+      metaPanel.innerHTML = '<div class="bld-meta__empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg><p>Sélectionnez un dossier.</p></div>';
+      return;
+    }
 
-    var menu = document.createElement('div');
-    menu.className = 'bld-context-menu';
-    menu.style.cssText = 'position: fixed; top: ' + e.clientY + 'px; left: ' + e.clientX + 'px; z-index: 9999; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 6px; padding: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-width: 160px;';
+    var folderData = reg.folders[folderPath];
+    var basename = folderPath.split('/').pop();
+    var displayName = folderData.name || basename;
+    var parentPath = getFolderFromPath(folderPath);
 
-    var deleteBtn = document.createElement('button');
-    deleteBtn.style.cssText = 'display: block; width: 100%; padding: 6px 12px; background: none; border: none; cursor: pointer; text-align: left; font-size: 13px; color: var(--color-error, #ef4444); border-radius: 4px;';
-    deleteBtn.textContent = 'Supprimer le dossier';
-    deleteBtn.addEventListener('mouseenter', function () { deleteBtn.style.background = 'var(--color-bg-hover, #f5f5f5)'; });
-    deleteBtn.addEventListener('mouseleave', function () { deleteBtn.style.background = 'none'; });
-    deleteBtn.addEventListener('click', function () {
-      menu.remove();
-      deleteFolder(folderPath);
+    // Compter les pages et sous-dossiers
+    var pageCount = Object.keys(reg.pages).filter(function (p) {
+      return getFolderFromPath(p) === folderPath;
+    }).length;
+    var subFolderCount = Object.keys(reg.folders).filter(function (f) {
+      if (f === folderPath) return false;
+      if (f.indexOf(folderPath + '/') !== 0) return false;
+      var remainder = f.substring(folderPath.length + 1);
+      return remainder.indexOf('/') === -1;
+    }).length;
+
+    var svgSubfolder = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>';
+    var svgDelete = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+
+    var isEmpty = pageCount === 0 && subFolderCount === 0;
+    var contenuText = [];
+    if (pageCount > 0) contenuText.push(pageCount + ' page' + (pageCount > 1 ? 's' : ''));
+    if (subFolderCount > 0) contenuText.push(subFolderCount + ' sous-dossier' + (subFolderCount > 1 ? 's' : ''));
+
+    metaPanel.innerHTML = ''
+      + '<div class="bld-meta">'
+
+      // ── Toolbar ──
+      + '<div class="bld-meta__toolbar">'
+      + '<button class="bld-meta__tool" data-action="create-subfolder" title="Nouveau sous-dossier">' + svgSubfolder + '</button>'
+      + '<button class="bld-meta__tool bld-meta__tool--danger" data-action="delete-folder" title="Supprimer le dossier"' + (isEmpty ? '' : ' disabled') + '>' + svgDelete + '</button>'
+      + '</div>'
+
+      + '<h2 class="bld-meta__title">' + escapeHtml(displayName) + '</h2>'
+
+      + '<div class="bld-field">'
+      + '<label class="bld-field__label">Nom d\'affichage</label>'
+      + '<input class="bld-field__input" type="text" data-folder-meta="name" value="' + escapeAttr(displayName) + '">'
+      + '</div>'
+
+      + '<div class="bld-field">'
+      + '<label class="bld-field__label">Slug (chemin technique)</label>'
+      + '<input class="bld-field__input" type="text" data-folder-meta="slug" value="' + escapeAttr(basename) + '">'
+      + '<div class="bld-field__error" id="folderSlugError"></div>'
+      + '<div class="bld-field__help">Chemin complet : ' + escapeHtml(folderPath) + '/</div>'
+      + '</div>'
+
+      + (parentPath ? '<div class="bld-field">'
+      + '<label class="bld-field__label">Dossier parent</label>'
+      + '<input class="bld-field__input" type="text" value="' + escapeAttr(parentPath) + '" readonly style="opacity: 0.6;">'
+      + '</div>' : '')
+
+      + '<div class="bld-field__sep"></div>'
+
+      + '<div class="bld-field">'
+      + '<label class="bld-field__label">Contenu</label>'
+      + '<p style="font-size: var(--text-sm); color: var(--color-text-light);">'
+      + (contenuText.length > 0 ? contenuText.join(', ') : 'Dossier vide')
+      + '</p>'
+      + '</div>'
+
+      + '</div>';
+
+    // ── Bind events ──
+
+    // Nom d'affichage : sauvegarde au blur ou Enter
+    var nameInput = metaPanel.querySelector('[data-folder-meta="name"]');
+    nameInput.addEventListener('blur', function () {
+      var newName = nameInput.value.trim();
+      if (!newName || newName === displayName) return;
+      reg.folders[folderPath].name = newName;
+      saveAndRefresh();
+      renderFolderMetaPanel(folderPath);
+      BuilderApp.showToast('Dossier renommé en « ' + newName + ' »', 'success');
+    });
+    nameInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); nameInput.blur(); }
     });
 
-    menu.appendChild(deleteBtn);
-    document.body.appendChild(menu);
+    // Slug : validation temps réel + sauvegarde au blur/Enter
+    var slugInput = metaPanel.querySelector('[data-folder-meta="slug"]');
+    var slugError = document.getElementById('folderSlugError');
 
-    // Fermer au clic ailleurs
-    function closeMenu(ev) {
-      if (!menu.contains(ev.target)) {
-        menu.remove();
-        document.removeEventListener('click', closeMenu);
+    slugInput.addEventListener('input', function () {
+      var val = slugify(slugInput.value);
+      if (!val) {
+        slugError.textContent = 'Le slug ne peut pas être vide';
+        slugInput.classList.add('bld-field__input--error');
+        return;
       }
+      var testPath = parentPath ? parentPath + '/' + val : val;
+      if (testPath !== folderPath && reg.folders[testPath]) {
+        slugError.textContent = 'Le slug « ' + val + ' » est déjà utilisé';
+        slugInput.classList.add('bld-field__input--error');
+        return;
+      }
+      slugError.textContent = '';
+      slugInput.classList.remove('bld-field__input--error');
+    });
+
+    slugInput.addEventListener('blur', function () {
+      var newSlug = slugify(slugInput.value);
+      if (!newSlug || newSlug === basename) {
+        slugInput.value = basename;
+        slugError.textContent = '';
+        slugInput.classList.remove('bld-field__input--error');
+        return;
+      }
+      var newPath = parentPath ? parentPath + '/' + newSlug : newSlug;
+      if (reg.folders[newPath]) {
+        slugError.textContent = 'Le slug « ' + newSlug + ' » est déjà utilisé';
+        slugInput.classList.add('bld-field__input--error');
+        return;
+      }
+      // Appliquer le changement de slug
+      var savedName = reg.folders[folderPath].name || displayName;
+      BuilderAPI.pageMoveFolder(folderPath, newPath).then(function () {
+        updateRegistryAfterFolderMove(reg, folderPath, newPath);
+        if (reg.folders[newPath]) reg.folders[newPath].name = savedName;
+        selectedFolder = newPath;
+        saveAndRefresh();
+        renderFolderMetaPanel(newPath);
+        BuilderApp.showToast('Slug modifié : ' + newSlug, 'success');
+      }).catch(function (e) {
+        BuilderApp.showToast('Erreur : ' + e.message, 'error');
+        slugInput.value = basename;
+      });
+    });
+
+    slugInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); slugInput.blur(); }
+    });
+
+    // Nouveau sous-dossier
+    var subfolderBtn = metaPanel.querySelector('[data-action="create-subfolder"]');
+    if (subfolderBtn) {
+      subfolderBtn.addEventListener('click', function () {
+        createSubFolder(folderPath);
+      });
     }
-    setTimeout(function () { document.addEventListener('click', closeMenu); }, 0);
+
+    // Supprimer
+    var deleteBtn = metaPanel.querySelector('[data-action="delete-folder"]');
+    if (deleteBtn && !deleteBtn.disabled) {
+      deleteBtn.addEventListener('click', function () {
+        deleteFolder(folderPath);
+      });
+    }
   }
 
   async function deleteFolder(folderPath) {
@@ -434,8 +606,137 @@
     try {
       await BuilderAPI.pageRmdir(folderPath);
       delete reg.folders[folderPath];
+      selectedFolder = null;
       saveAndRefresh();
+      metaPanel.innerHTML = '<div class="bld-meta__empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><p>Sélectionnez une page ou un dossier.</p></div>';
       BuilderApp.showToast('Dossier supprimé', 'success');
+    } catch (e) {
+      BuilderApp.showToast('Erreur : ' + e.message, 'error');
+    }
+  }
+
+  /* ══════════════════════════════════════
+     DOSSIERS — Déplacement, renommage, sous-dossier
+     ══════════════════════════════════════ */
+
+  /** Met à jour toutes les clés du registre après un déplacement/renommage de dossier */
+  function updateRegistryAfterFolderMove(reg, oldPath, newPath) {
+    var prefix = oldPath + '/';
+    var newPrefix = newPath + '/';
+
+    // 1. Renommer les pages : blog/article.html → services/blog/article.html
+    Object.keys(reg.pages).forEach(function (key) {
+      if (key.indexOf(prefix) === 0) {
+        var newKey = newPrefix + key.substring(prefix.length);
+        reg.pages[newKey] = reg.pages[key];
+        reg.pages[newKey].slug = newKey.replace(/\.html$/, '');
+        reg.pages[newKey].updatedAt = new Date().toISOString();
+        delete reg.pages[key];
+      }
+    });
+
+    // 2. Renommer le dossier lui-même + ses sous-dossiers
+    Object.keys(reg.folders).forEach(function (key) {
+      if (key === oldPath || key.indexOf(prefix) === 0) {
+        var newKey = key === oldPath ? newPath : newPrefix + key.substring(prefix.length);
+        reg.folders[newKey] = reg.folders[key];
+        delete reg.folders[key];
+      }
+    });
+
+    // 3. S'assurer que le dossier parent existe dans le registre
+    var parentSlash = newPath.lastIndexOf('/');
+    if (parentSlash !== -1) {
+      var parentFolder = newPath.substring(0, parentSlash);
+      if (!reg.folders[parentFolder]) {
+        reg.folders[parentFolder] = { order: Object.keys(reg.folders).length, collapsed: false };
+      }
+    }
+
+    // 4. Mettre à jour selectedPage si elle était dans le dossier déplacé
+    if (selectedPage && selectedPage.indexOf(prefix) === 0) {
+      selectedPage = newPrefix + selectedPage.substring(prefix.length);
+    }
+  }
+
+  /** Déplace un dossier dans un autre dossier (ou à la racine si targetFolder est vide) */
+  async function moveFolderToFolder(draggedFolder, targetFolder) {
+    var reg = BuilderApp.state.registry;
+    if (!reg || !reg.folders) return;
+
+    // Calculer le nouveau chemin
+    var basename = draggedFolder.split('/').pop();
+    var newPath;
+    if (!targetFolder) {
+      newPath = basename;
+    } else {
+      newPath = targetFolder + '/' + basename;
+    }
+
+    if (newPath === draggedFolder) return;
+
+    // Empêcher de déplacer dans soi-même ou dans un enfant
+    if (newPath.indexOf(draggedFolder + '/') === 0) {
+      BuilderApp.showToast('Impossible de déplacer un dossier dans lui-même', 'error');
+      return;
+    }
+
+    // Vérifier que le dossier cible n'existe pas déjà
+    if (reg.folders[newPath]) {
+      BuilderApp.showToast('Le dossier « ' + newPath + ' » existe déjà', 'error');
+      return;
+    }
+
+    try {
+      await BuilderAPI.pageMoveFolder(draggedFolder, newPath);
+      updateRegistryAfterFolderMove(reg, draggedFolder, newPath);
+      saveAndRefresh();
+      if (selectedPage) renderMetaPanel(selectedPage);
+      BuilderApp.showToast('Dossier déplacé', 'success');
+    } catch (e) {
+      BuilderApp.showToast('Erreur : ' + e.message, 'error');
+    }
+  }
+
+  /** Crée un sous-dossier dans un dossier parent */
+  async function createSubFolder(parentFolder) {
+    var reg = BuilderApp.state.registry;
+    if (!reg.folders) reg.folders = {};
+    var parentName = (reg.folders[parentFolder] && reg.folders[parentFolder].name) || parentFolder.split('/').pop();
+
+    var result = await BuilderModal.form({
+      title: 'Nouveau sous-dossier',
+      message: 'Créer un sous-dossier dans « ' + parentName + ' ».',
+      fields: [
+        { key: 'name', label: 'Nom du sous-dossier', value: '', placeholder: 'Ex : Consulting' },
+        { key: 'slug', label: 'Slug (chemin technique)', value: '', placeholder: 'consulting', helpText: 'Généré automatiquement à partir du nom' }
+      ],
+      linkedSlug: { source: 'name', target: 'slug', slugify: slugify },
+      validate: function (values) {
+        if (!values.name || !values.name.trim()) return 'Le nom ne peut pas être vide';
+        if (!values.slug) return 'Le slug ne peut pas être vide';
+        var fullPath = parentFolder + '/' + values.slug;
+        if (reg.folders[fullPath]) return 'Le slug « ' + values.slug + ' » est déjà utilisé dans ce dossier';
+        return null;
+      },
+      confirmText: 'Créer',
+      variant: 'primary'
+    });
+
+    if (!result) return;
+
+    var displayName = result.name.trim();
+    var fullPath = parentFolder + '/' + result.slug;
+
+    try {
+      await BuilderAPI.pageMkdir(fullPath);
+      reg.folders[fullPath] = { name: displayName, order: Object.keys(reg.folders).length, collapsed: false };
+      if (reg.folders[parentFolder]) {
+        reg.folders[parentFolder].collapsed = false;
+      }
+      saveAndRefresh();
+      if (selectedFolder === parentFolder) renderFolderMetaPanel(parentFolder);
+      BuilderApp.showToast('Sous-dossier « ' + displayName + ' » créé', 'success');
     } catch (e) {
       BuilderApp.showToast('Erreur : ' + e.message, 'error');
     }
@@ -566,14 +867,22 @@
 
   function selectPage(path) {
     selectedPage = path;
+    selectedFolder = null;
     renderTree();
     renderMetaPanel(path);
+  }
+
+  function selectFolder(folderPath) {
+    selectedFolder = folderPath;
+    selectedPage = null;
+    renderTree();
+    renderFolderMetaPanel(folderPath);
   }
 
   function renderMetaPanel(path) {
     var reg = BuilderApp.state.registry;
     if (!reg || !reg.pages || !reg.pages[path]) {
-      metaPanel.innerHTML = '<div class="bld-meta__empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><p>Sélectionnez une page.</p></div>';
+      metaPanel.innerHTML = '<div class="bld-meta__empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><p>Sélectionnez une page ou un dossier.</p></div>';
       return;
     }
 
@@ -950,26 +1259,36 @@
      ══════════════════════════════════════ */
 
   async function openNewFolderModal() {
-    var folderName = await BuilderModal.prompt({
+    var reg = BuilderApp.state.registry;
+    if (!reg.folders) reg.folders = {};
+
+    var result = await BuilderModal.form({
       title: 'Nouveau dossier',
-      message: 'Créer un nouveau dossier dans pages/',
-      label: 'Nom du dossier',
-      value: '',
+      fields: [
+        { key: 'name', label: 'Nom du dossier', value: '', placeholder: 'Ex : Études de cas' },
+        { key: 'slug', label: 'Slug (chemin technique)', value: '', placeholder: 'etudes-de-cas', helpText: 'Généré automatiquement à partir du nom' }
+      ],
+      linkedSlug: { source: 'name', target: 'slug', slugify: slugify },
+      validate: function (values) {
+        if (!values.name || !values.name.trim()) return 'Le nom ne peut pas être vide';
+        if (!values.slug) return 'Le slug ne peut pas être vide';
+        if (reg.folders[values.slug]) return 'Le slug « ' + values.slug + ' » est déjà utilisé';
+        return null;
+      },
       confirmText: 'Créer',
       variant: 'primary'
     });
 
-    if (!folderName) return;
-    folderName = folderName.trim().replace(/[^a-zA-Z0-9_\-]/g, '-').toLowerCase();
-    if (!folderName) return;
+    if (!result) return;
+
+    var displayName = result.name.trim();
+    var folderSlug = result.slug;
 
     try {
-      await BuilderAPI.pageMkdir(folderName);
-      var reg = BuilderApp.state.registry;
-      if (!reg.folders) reg.folders = {};
-      reg.folders[folderName] = { order: Object.keys(reg.folders).length, collapsed: false };
+      await BuilderAPI.pageMkdir(folderSlug);
+      reg.folders[folderSlug] = { name: displayName, order: Object.keys(reg.folders).length, collapsed: false };
       saveAndRefresh();
-      BuilderApp.showToast('Dossier « ' + folderName + ' » créé', 'success');
+      BuilderApp.showToast('Dossier « ' + displayName + ' » créé (' + folderSlug + ')', 'success');
     } catch (e) {
       BuilderApp.showToast('Erreur : ' + e.message, 'error');
     }
