@@ -153,7 +153,8 @@ def _propagate_alt_text(media_path, alt_text):
             for src_path in [prefix + media_path, '/' + media_path]:
                 escaped = re.escape(src_path)
                 pattern = r'(<img\b[^>]*\bsrc="' + escaped + r'"[^>]*\balt=")[^"]*(")'
-                content = re.sub(pattern, r'\g<1>' + alt_text.replace('\\', '\\\\') + r'\2', content)
+                safe_alt = alt_text.replace('\\', '\\\\').replace('"', '&quot;')
+                content = re.sub(pattern, lambda m: m.group(1) + safe_alt + m.group(2), content)
 
             if content != original:
                 with open(filepath, 'w', encoding='utf-8') as f:
