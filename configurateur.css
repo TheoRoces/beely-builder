@@ -1470,6 +1470,29 @@ body { margin: 0; overflow: hidden; height: 100vh; }
   gap: var(--space-1);
 }
 
+.bld-media-edit__usage {
+  font-size: var(--text-xs);
+  color: var(--color-text-light);
+  padding: var(--space-2) var(--space-3);
+}
+
+.bld-media-edit__usage strong {
+  color: var(--color-text);
+}
+
+.bld-media-edit__usage-list {
+  list-style: none;
+  padding: var(--space-1) 0 0 0;
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-light);
+}
+
+.bld-media-edit__usage-list li::before {
+  content: '→ ';
+  opacity: 0.5;
+}
+
 /* Breadcrumb dossiers médiathèque */
 .bld-media__breadcrumb {
   display: flex;

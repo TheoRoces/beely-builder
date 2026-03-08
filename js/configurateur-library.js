@@ -460,6 +460,25 @@
     document.getElementById('mediaEditName').value = name;
     document.getElementById('mediaEditAlt').value = '';
 
+    // Charger le alt text depuis le serveur
+    BuilderAPI.mediaMeta(path).then(function (data) {
+      document.getElementById('mediaEditAlt').value = data.alt || '';
+    });
+
+    // Charger l'usage (pages qui utilisent cette image)
+    var usageEl = document.getElementById('mediaEditUsage');
+    usageEl.innerHTML = '<span class="bld-text--muted">Chargement…</span>';
+    BuilderAPI.mediaUsage(path).then(function (data) {
+      if (data.count === 0) {
+        usageEl.innerHTML = '<span class="bld-text--muted">Non utilisée</span>';
+      } else {
+        usageEl.innerHTML = '<strong>Utilisée dans ' + data.count + ' page' + (data.count > 1 ? 's' : '') + '</strong>'
+          + '<ul class="bld-media-edit__usage-list">'
+          + data.usage.map(function (p) { return '<li>' + escapeHtml(p) + '</li>'; }).join('')
+          + '</ul>';
+      }
+    });
+
     var infoEl = document.getElementById('mediaEditInfo');
     infoEl.innerHTML = '<span>' + getFileType(name) + '</span>'
       + '<span>' + formatFileSize(size) + '</span>'
@@ -497,6 +516,7 @@
 
       var newName = document.getElementById('mediaEditName').value.trim();
       var newFolder = document.getElementById('mediaEditFolder').value;
+      var newAlt = document.getElementById('mediaEditAlt').value.trim();
 
       if (!newName) {
         BuilderApp.showToast('Le nom ne peut pas être vide', 'error');
@@ -504,12 +524,14 @@
       }
 
       var changed = false;
+      var totalUpdatedPages = 0;
 
       if (newName !== mediaEditFile.name) {
         try {
           var resp = await BuilderAPI.mediaRename(mediaEditFile.path, newName);
           mediaEditFile.path = resp.path;
           mediaEditFile.name = resp.name;
+          totalUpdatedPages += (resp.updatedPages || 0);
           changed = true;
         } catch (err) {
           BuilderApp.showToast('Erreur renommage : ' + err.message, 'error');
@@ -526,7 +548,9 @@
       }
       if (newFolder !== currentFolder) {
         try {
-          await BuilderAPI.mediaMove(mediaEditFile.path, newFolder);
+          var resp = await BuilderAPI.mediaMove(mediaEditFile.path, newFolder);
+          if (resp.path) mediaEditFile.path = resp.path;
+          totalUpdatedPages += (resp.updatedPages || 0);
           changed = true;
         } catch (err) {
           BuilderApp.showToast('Erreur déplacement : ' + err.message, 'error');
@@ -534,10 +558,23 @@
         }
       }
 
+      // Sauvegarder le alt text
+      try {
+        await BuilderAPI.mediaMetaSave(mediaEditFile.path, newAlt);
+      } catch (err) {
+        BuilderApp.showToast('Erreur sauvegarde alt : ' + err.message, 'error');
+      }
+
       overlay.classList.remove('bld-modal-overlay--visible');
       if (changed) {
-        BuilderApp.showToast('Fichier mis à jour', 'success');
+        var msg = 'Fichier mis à jour';
+        if (totalUpdatedPages > 0) {
+          msg += ' — ' + totalUpdatedPages + ' page' + (totalUpdatedPages > 1 ? 's' : '') + ' mise' + (totalUpdatedPages > 1 ? 's' : '') + ' à jour';
+        }
+        BuilderApp.showToast(msg, 'success');
         refreshMediaGrid();
+      } else {
+        BuilderApp.showToast('Alt text enregistré', 'success');
       }
     });
   }

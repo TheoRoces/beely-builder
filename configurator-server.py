@@ -74,6 +74,92 @@ def is_protected_path(path_str):
     return parts[0] in PROTECTED_DIRS if parts else False
 
 
+def _load_media_meta():
+    """Charge les métadonnées médias depuis data/media-meta.json."""
+    meta_path = os.path.join(ROOT, 'data', 'media-meta.json')
+    if not os.path.isfile(meta_path):
+        return {}
+    with open(meta_path, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+
+def _save_media_meta(meta):
+    """Sauvegarde les métadonnées médias dans data/media-meta.json."""
+    data_dir = os.path.join(ROOT, 'data')
+    if not os.path.isdir(data_dir):
+        os.makedirs(data_dir, exist_ok=True)
+    meta_path = os.path.join(data_dir, 'media-meta.json')
+    with open(meta_path, 'w', encoding='utf-8') as f:
+        json.dump(meta, f, ensure_ascii=False, indent=2)
+
+
+def _update_media_references(old_rel, new_rel):
+    """Scanne toutes les pages HTML et met à jour les références vers un média déplacé/renommé.
+    Retourne le nombre de pages mises à jour."""
+    pages_dir = os.path.join(ROOT, PAGES_DIR)
+    updated_count = 0
+    if not os.path.isdir(pages_dir):
+        return updated_count
+
+    for dirpath, _, filenames in os.walk(pages_dir):
+        for fname in filenames:
+            if not fname.endswith('.html'):
+                continue
+            filepath = os.path.join(dirpath, fname)
+            rel_to_pages = os.path.relpath(filepath, pages_dir)
+            page_depth = rel_to_pages.count(os.sep)
+            prefix = '../' * (page_depth + 1)
+
+            with open(filepath, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            original = content
+            content = content.replace(prefix + old_rel, prefix + new_rel)
+            content = content.replace('/' + old_rel, '/' + new_rel)
+
+            if content != original:
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                updated_count += 1
+
+    # Mettre à jour les clés dans media-meta.json
+    meta = _load_media_meta()
+    if old_rel in meta:
+        meta[new_rel] = meta.pop(old_rel)
+        _save_media_meta(meta)
+
+    return updated_count
+
+
+def _propagate_alt_text(media_path, alt_text):
+    """Met à jour l'attribut alt des <img> qui référencent ce média dans toutes les pages."""
+    pages_dir = os.path.join(ROOT, PAGES_DIR)
+    if not os.path.isdir(pages_dir):
+        return
+
+    for dirpath, _, filenames in os.walk(pages_dir):
+        for fname in filenames:
+            if not fname.endswith('.html'):
+                continue
+            filepath = os.path.join(dirpath, fname)
+            rel_to_pages = os.path.relpath(filepath, pages_dir).replace('\\', '/')
+            page_depth = rel_to_pages.count('/')
+            prefix = '../' * (page_depth + 1)
+
+            with open(filepath, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            original = content
+            for src_path in [prefix + media_path, '/' + media_path]:
+                escaped = re.escape(src_path)
+                pattern = r'(<img\b[^>]*\bsrc="' + escaped + r'"[^>]*\balt=")[^"]*(")'
+                content = re.sub(pattern, r'\g<1>' + alt_text.replace('\\', '\\\\') + r'\2', content)
+
+            if content != original:
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    f.write(content)
+
+
 def extract_title(html_content):
     """Extrait le contenu de <title> depuis du HTML."""
     match = re.search(r'<title[^>]*>(.*?)</title>', html_content, re.IGNORECASE | re.DOTALL)
@@ -206,6 +292,12 @@ class BuilderHandler(SimpleHTTPRequestHandler):
             self._handle_media_mkdir(body)
         elif path == '/api/media-move':
             self._handle_media_move(body)
+        elif path == '/api/media-usage':
+            self._handle_media_usage(body)
+        elif path == '/api/media-meta':
+            self._handle_media_meta(body)
+        elif path == '/api/media-meta-save':
+            self._handle_media_meta_save(body)
 
         # ── Registre pages.json ──
         elif path == '/api/registry-read':
@@ -703,7 +795,8 @@ class BuilderHandler(SimpleHTTPRequestHandler):
             return self._json(400, {'error': 'Un fichier avec ce nom existe déjà'})
         os.rename(old_filepath, new_filepath)
         new_rel = os.path.relpath(new_filepath, ROOT).replace('\\', '/')
-        self._json(200, {'ok': True, 'path': new_rel, 'name': new_name})
+        updated = _update_media_references(old_path, new_rel)
+        self._json(200, {'ok': True, 'path': new_rel, 'name': new_name, 'updatedPages': updated})
 
     def _handle_media_mkdir(self, body):
         """Créer un dossier dans assets/images/."""
@@ -752,7 +845,54 @@ class BuilderHandler(SimpleHTTPRequestHandler):
             return self._json(400, {'error': 'Un fichier avec ce nom existe déjà dans ce dossier'})
         shutil.move(old_filepath, new_filepath)
         new_rel = os.path.relpath(new_filepath, ROOT).replace('\\', '/')
-        self._json(200, {'ok': True, 'path': new_rel})
+        updated = _update_media_references(file_path, new_rel)
+        self._json(200, {'ok': True, 'path': new_rel, 'updatedPages': updated})
+
+    def _handle_media_usage(self, body):
+        """Retourne les pages qui utilisent un média donné."""
+        media_path = body.get('path', '')
+        if not media_path:
+            return self._json(400, {'error': 'Chemin requis'})
+        pages_dir = os.path.join(ROOT, PAGES_DIR)
+        usage = []
+        if not os.path.isdir(pages_dir):
+            return self._json(200, {'ok': True, 'usage': [], 'count': 0})
+        for dirpath, _, filenames in os.walk(pages_dir):
+            for fname in filenames:
+                if not fname.endswith('.html'):
+                    continue
+                filepath = os.path.join(dirpath, fname)
+                rel_to_pages = os.path.relpath(filepath, pages_dir).replace('\\', '/')
+                page_depth = rel_to_pages.count('/')
+                prefix = '../' * (page_depth + 1)
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                if (prefix + media_path) in content or ('/' + media_path) in content:
+                    usage.append(rel_to_pages)
+        self._json(200, {'ok': True, 'usage': usage, 'count': len(usage)})
+
+    def _handle_media_meta(self, body):
+        """Retourne les métadonnées d'un média (alt text, etc.)."""
+        media_path = body.get('path', '')
+        if not media_path:
+            return self._json(400, {'error': 'Chemin requis'})
+        meta = _load_media_meta()
+        entry = meta.get(media_path, {})
+        self._json(200, {'ok': True, 'alt': entry.get('alt', '')})
+
+    def _handle_media_meta_save(self, body):
+        """Sauvegarde les métadonnées d'un média et propage le alt text dans les pages."""
+        media_path = body.get('path', '')
+        alt_text = body.get('alt', '')
+        if not media_path:
+            return self._json(400, {'error': 'Chemin requis'})
+        meta = _load_media_meta()
+        if not meta.get(media_path):
+            meta[media_path] = {}
+        meta[media_path]['alt'] = alt_text
+        _save_media_meta(meta)
+        _propagate_alt_text(media_path, alt_text)
+        self._json(200, {'ok': True})
 
     # ═══════════════════════════════════════════════════════
     #  REGISTRE (data/pages.json)
