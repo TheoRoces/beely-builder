@@ -541,7 +541,7 @@ class BuilderHandler(SimpleHTTPRequestHandler):
         if not os.path.exists(old_filepath):
             return self._json(404, {'error': 'Fichier source introuvable'})
         if os.path.exists(new_filepath):
-            return self._json(409, {'error': 'Le fichier cible existe deja'})
+            return self._json(409, {'error': 'Le fichier cible existe déjà'})
 
         # Créer le dossier parent si nécessaire
         parent_dir = os.path.dirname(new_filepath)
